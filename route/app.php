@@ -1,17 +1,17 @@
 <?php
-// +----------------------------------------------------------------------
-// | ThinkPHP [ WE CAN DO IT JUST THINK ]
-// +----------------------------------------------------------------------
-// | Copyright (c) 2006~2018 http://thinkphp.cn All rights reserved.
-// +----------------------------------------------------------------------
-// | Licensed ( http://www.apache.org/licenses/LICENSE-2.0 )
-// +----------------------------------------------------------------------
-// | Author: liu21st <liu21st@gmail.com>
-// +----------------------------------------------------------------------
+
 use think\facade\Route;
 
-Route::get('think', function () {
-    return 'hello,ThinkPHP8!';
+// 用户相关路由
+Route::group('user', function () {
+    // 获取邮箱验证码
+    Route::post('get-email-code', 'User/getEmailCode');
+    // 用户注册
+    Route::post('register', 'User/register');
+    // 用户登录
+    Route::post('login', 'User/login');
+    // 修改密码
+    Route::post('change-password', 'User/changePassword');
+    // 禁用用户
+    Route::post('disable', 'User/disableUser');
 });
-
-Route::get('hello/:name', 'index/hello');

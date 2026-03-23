@@ -225,7 +225,7 @@ abstract class BaseController
      * @access protected
      * @return \app\service\JwtService
      */
-    protected function jwt(): \app\service\JwtService
+    protected function jwt()
     {
         return new \app\service\JwtService();
     }

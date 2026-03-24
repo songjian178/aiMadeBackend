@@ -205,26 +205,4 @@ class Address extends BaseController
         return $this->success($list, '获取地址列表成功');
     }
 
-    /**
-     * 从 token 数据中解析 user_id
-     * @param array $tokenData
-     * @return int
-     */
-    private function getCurrentUserId(): int
-    {
-        $tokenData = $this->validateToken();
-        if (!isset($tokenData['data'])) {
-            return 0;
-        }
-
-        if (is_object($tokenData['data']) && isset($tokenData['data']->user_id)) {
-            return (int)$tokenData['data']->user_id;
-        }
-
-        if (is_array($tokenData['data']) && isset($tokenData['data']['user_id'])) {
-            return (int)$tokenData['data']['user_id'];
-        }
-
-        return 0;
-    }
 }

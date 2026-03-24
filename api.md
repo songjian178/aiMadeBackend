@@ -6,6 +6,8 @@
 - 2026-03-24：新增实体模块接口（获取实体分类列表）
 - 2026-03-24：新增地址模块接口（地址增删改查）
 - 2026-03-24：更新地址新增接口（单用户地址上限5条）
+- 2026-03-24：新增订单模块接口（生成订单二维码）
+- 2026-03-24：新增订单模块接口（订单心跳检测）
 
 ## 用户模块
 
@@ -544,6 +546,122 @@
 {
   "code": 401,
   "message": "请先登录",
+  "data": null
+}
+```
+
+## 订单模块
+
+### 1. 生成订单二维码
+
+**请求地址**：`/order/create-pay-qrcode`
+**请求方式**：POST
+**是否需要 token**：是
+**请求头**：
+- Authorization: Bearer {token}
+
+**请求参数**：
+
+| 参数名 | 类型 | 必填 | 描述 |
+|-------|------|------|------|
+| category_id | int | 是 | 实体分类ID |
+
+**返回示例**：
+
+```json
+// 成功
+{
+  "code": 200,
+  "message": "订单二维码生成成功",
+  "data": {
+    "order_id": 1,
+    "order_no": "AM2026032412304599",
+    "payment_method": "WX",
+    "qr_code_url": "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=WeChatPay_Fake_Link"
+  }
+}
+
+// 失败
+{
+  "code": 401,
+  "message": "请先登录",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "参数不完整",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "实体分类不存在或不可用",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "订单创建失败，请稍后重试",
+  "data": null
+}
+```
+
+### 2. 订单心跳检测
+
+**请求地址**：`/order/heartbeat`
+**请求方式**：POST
+**是否需要 token**：是
+**请求头**：
+- Authorization: Bearer {token}
+
+**请求参数**：
+
+| 参数名 | 类型 | 必填 | 描述 |
+|-------|------|------|------|
+| order_no | string | 是 | 订单编号 |
+
+**返回示例**：
+
+```json
+// 成功（已支付）
+{
+  "code": 200,
+  "message": "心跳检测成功",
+  "data": {
+    "order_no": "AM2026032412304599",
+    "payment_status": 1,
+    "result": "支付成功"
+  }
+}
+
+// 成功（未支付/支付失败）
+{
+  "code": 200,
+  "message": "心跳检测成功",
+  "data": {
+    "order_no": "AM2026032412304599",
+    "payment_status": 0,
+    "result": "支付失败"
+  }
+}
+
+// 失败
+{
+  "code": 401,
+  "message": "请先登录",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "参数不完整",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "订单不存在",
   "data": null
 }
 ```

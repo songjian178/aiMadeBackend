@@ -36,3 +36,11 @@ Route::group('address', function () {
     // 查询所有地址
     Route::get('list', 'Address/list');
 })->middleware('auth');
+
+// 订单相关路由
+Route::group('order', function () {
+    // 生成订单二维码
+    Route::post('create-pay-qrcode', 'Order/createPayQrCode');
+    // 订单心跳检测
+    Route::post('heartbeat', 'Order/heartbeat');
+})->middleware('auth');

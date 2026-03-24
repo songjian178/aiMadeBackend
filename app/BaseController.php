@@ -319,4 +319,27 @@ abstract class BaseController
         }
     }
 
+    /**
+     * 获取当前登录用户ID
+     * @access protected
+     * @return int
+     */
+    protected function getCurrentUserId(): int
+    {
+        $tokenData = $this->validateToken();
+        if (!isset($tokenData['data'])) {
+            return 0;
+        }
+
+        if (is_object($tokenData['data']) && isset($tokenData['data']->user_id)) {
+            return (int)$tokenData['data']->user_id;
+        }
+
+        if (is_array($tokenData['data']) && isset($tokenData['data']['user_id'])) {
+            return (int)$tokenData['data']['user_id'];
+        }
+
+        return 0;
+    }
+
 }

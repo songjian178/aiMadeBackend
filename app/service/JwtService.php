@@ -37,7 +37,7 @@ class JwtService
         // 从配置文件获取密钥，默认使用框架密钥
         $this->secretKey = config('app.app_key') ?: '5exzbTDScQRkks3RMVcZaSCu4b3uFcjm';
         $this->issuer = config('app.app_name') ?: 'aiMadeBackend';
-        $this->expireTime = 3600; // 默认1小时
+        $this->expireTime = 86400; // 默认1小时
     }
     
     /**

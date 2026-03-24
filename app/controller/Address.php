@@ -14,15 +14,7 @@ class Address extends BaseController
      */
     public function create()
     {
-        $tokenData = $this->validateToken();
-        if (!$tokenData) {
-            return $this->error('请先登录', 401);
-        }
-
-        $userId = $this->getUserIdFromToken($tokenData);
-        if (!$userId) {
-            return $this->error('无效的用户信息', 401);
-        }
+        $userId = $this->getCurrentUserId();
 
         $addressCount = Db::name('user_address')
             ->where('user_id', $userId)
@@ -78,15 +70,7 @@ class Address extends BaseController
      */
     public function delete()
     {
-        $tokenData = $this->validateToken();
-        if (!$tokenData) {
-            return $this->error('请先登录', 401);
-        }
-
-        $userId = $this->getUserIdFromToken($tokenData);
-        if (!$userId) {
-            return $this->error('无效的用户信息', 401);
-        }
+        $userId = $this->getCurrentUserId();
 
         $addressId = (int)$this->request->post('id');
         if ($addressId <= 0) {
@@ -143,15 +127,7 @@ class Address extends BaseController
      */
     public function update()
     {
-        $tokenData = $this->validateToken();
-        if (!$tokenData) {
-            return $this->error('请先登录', 401);
-        }
-
-        $userId = $this->getUserIdFromToken($tokenData);
-        if (!$userId) {
-            return $this->error('无效的用户信息', 401);
-        }
+        $userId = $this->getCurrentUserId();
 
         $data = $this->request->post();
         $addressId = (int)($data['id'] ?? 0);
@@ -211,15 +187,7 @@ class Address extends BaseController
      */
     public function list()
     {
-        $tokenData = $this->validateToken();
-        if (!$tokenData) {
-            return $this->error('请先登录', 401);
-        }
-
-        $userId = $this->getUserIdFromToken($tokenData);
-        if (!$userId) {
-            return $this->error('无效的用户信息', 401);
-        }
+        $userId = $this->getCurrentUserId();
 
         $list = Db::name('user_address')
             ->field('id,recipient,phone,province,city,district,address,zip_code,is_default,created_at,updated_at')
@@ -239,8 +207,9 @@ class Address extends BaseController
      * @param array $tokenData
      * @return int
      */
-    private function getUserIdFromToken(array $tokenData): int
+    private function getCurrentUserId(): int
     {
+        $tokenData = $this->validateToken();
         if (!isset($tokenData['data'])) {
             return 0;
         }

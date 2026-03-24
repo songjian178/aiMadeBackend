@@ -345,3 +345,29 @@ APP_KEY=your-secret-key-here
 ```
 
 如果未设置 `APP_KEY`，将使用默认值 `your-secret-key`，建议在生产环境中设置一个安全的密钥。
+
+## 鉴权中间件使用说明
+
+为避免在控制器中重复编写 token 校验逻辑，项目新增了统一鉴权中间件：
+
+- 中间件文件：`app/middleware/Auth.php`
+- 别名配置：`config/middleware.php` 中的 `auth`
+
+### 路由中引用方式
+
+对需要登录权限的接口，在路由组上直接挂载 `auth` 中间件：
+
+```php
+Route::group('address', function () {
+    Route::post('create', 'Address/create');
+    Route::post('delete', 'Address/delete');
+    Route::post('update', 'Address/update');
+    Route::get('list', 'Address/list');
+})->middleware('auth');
+```
+
+### 推荐实践
+
+1. **公开接口**（如登录、注册、获取验证码）不挂载 `auth` 中间件。
+2. **需登录接口**（如修改密码、地址管理等）统一在路由层挂载 `auth` 中间件。
+3. 控制器中保留业务逻辑处理，避免重复写“是否登录”的判断代码。

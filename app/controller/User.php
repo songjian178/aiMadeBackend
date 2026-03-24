@@ -182,14 +182,9 @@ class User extends BaseController
      */
     public function changePassword()
     {
-        // 验证token
-        $tokenData = $this->validateToken();
-        if (!$tokenData) {
-            return $this->error('请先登录', 401);
-        }
-
         $data = $this->request->post();
-        $userId = $tokenData['data']->user_id;
+        $tokenData = $this->validateToken();
+        $userId = is_object($tokenData['data']) ? (int)$tokenData['data']->user_id : (int)$tokenData['data']['user_id'];
         
         if($data['old_password'] == $data['new_password']){
             return $this->error('新旧密码不能一致', 401);
@@ -233,14 +228,11 @@ class User extends BaseController
      */
     public function disableUser()
     {
-        // 验证token
         $tokenData = $this->validateToken();
-        if (!$tokenData) {
-            return $this->error('请先登录', 401);
-        }
+        $tokenUser = is_object($tokenData['data']) ? (array)$tokenData['data'] : $tokenData['data'];
         
         // 检查是否为管理员
-        if ($tokenData['data']['role'] != 1) {
+        if ((int)($tokenUser['role'] ?? 0) !== 1) {
             return $this->error('权限不足', 403);
         }
         
@@ -252,7 +244,7 @@ class User extends BaseController
         }
         
         // 不能禁用自己
-        if ($userId == $tokenData['data']['user_id']) {
+        if ($userId == ($tokenUser['user_id'] ?? 0)) {
             return $this->error('不能操作自己的账户');
         }
         

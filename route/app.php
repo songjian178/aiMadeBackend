@@ -10,11 +10,14 @@ Route::group('user', function () {
     Route::post('register', 'User/register');
     // 用户登录
     Route::post('login', 'User/login');
+});
+
+Route::group('user', function () {
     // 修改密码
     Route::post('change-password', 'User/changePassword');
     // 禁用用户
     Route::post('disable', 'User/disableUser');
-});
+})->middleware('auth');
 
 // 实体相关路由
 Route::group('entity', function () {
@@ -32,4 +35,4 @@ Route::group('address', function () {
     Route::post('update', 'Address/update');
     // 查询所有地址
     Route::get('list', 'Address/list');
-});
+})->middleware('auth');

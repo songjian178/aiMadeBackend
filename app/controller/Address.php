@@ -57,6 +57,7 @@ class Address extends BaseController
             ]);
 
             Db::commit();
+            $this->writeLog('address_create', '用户新增地址', (int)$userId);
             return $this->success(['id' => $addressId], '地址新增成功');
         } catch (\Exception $e) {
             Db::rollback();
@@ -114,6 +115,7 @@ class Address extends BaseController
             }
 
             Db::commit();
+            $this->writeLog('address_delete', '用户删除地址', (int)$userId);
             return $this->success(null, '地址删除成功');
         } catch (\Exception $e) {
             Db::rollback();
@@ -174,6 +176,7 @@ class Address extends BaseController
             Db::name('user_address')->where('id', $addressId)->update($updateData);
 
             Db::commit();
+            $this->writeLog('address_update', '用户修改地址', (int)$userId);
             return $this->success(null, '地址修改成功');
         } catch (\Exception $e) {
             Db::rollback();

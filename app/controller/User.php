@@ -110,6 +110,7 @@ class User extends BaseController
             ];
             
             $userId = Db::name('user')->insertGetId($userData);
+            $this->writeLog('user_register', '用户注册成功', (int)$userId);
             
             // 提交事务
             Db::commit();
@@ -161,6 +162,8 @@ class User extends BaseController
             'email' => $user['email'],
             'role' => $user['role']
         ]);
+
+        $this->writeLog('user_login', '用户登录成功', (int)$user['id']);
         
         // 返回用户信息和token
         return $this->success([
@@ -216,6 +219,7 @@ class User extends BaseController
         ]);
         
         if ($result) {
+            $this->writeLog('user_change_password', '用户修改密码成功', (int)$userId);
             return $this->success(null, '密码修改成功');
         } else {
             return $this->error('密码修改失败，请稍后重试');
@@ -254,6 +258,11 @@ class User extends BaseController
         ]);
         
         if ($result) {
+            $this->writeLog(
+                'user_disable',
+                $status == 0 ? '管理员禁用用户' : '管理员启用用户',
+                (int)($tokenUser['user_id'] ?? 0)
+            );
             return $this->success(null, $status == 0 ? '用户已禁用' : '用户已启用');
         } else {
             return $this->error('操作失败，请稍后重试');

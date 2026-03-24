@@ -5,6 +5,7 @@ namespace app;
 
 use think\App;
 use think\exception\ValidateException;
+use think\facade\Db;
 use think\Validate;
 
 /**
@@ -290,6 +291,32 @@ abstract class BaseController
             return false;
         }
         return $this->verifyToken($token);
+    }
+
+    /**
+     * 记录操作日志
+     * @access protected
+     * @param  string   $operationType    操作类型
+     * @param  string   $operationContent 操作内容
+     * @param  int|null $userId           用户ID
+     * @param  int      $logLevel         日志等级（1:info 2:warning 3:error）
+     * @return void
+     */
+    protected function writeLog(string $operationType, string $operationContent, ?int $userId = null, int $logLevel = 1): void
+    {
+        try {
+            Db::name('log')->insert([
+                'user_id' => $userId ?: null,
+                'operation_type' => $operationType,
+                'operation_ip' => $this->request->ip(),
+                'user_agent' => $this->request->header('user-agent', ''),
+                'operation_content' => $operationContent,
+                'log_level' => $logLevel,
+                'status' => 1
+            ]);
+        } catch (\Throwable $e) {
+            // 日志写入不应影响主业务流程
+        }
     }
 
 }

@@ -44,3 +44,8 @@ Route::group('order', function () {
     // 订单心跳检测
     Route::post('heartbeat', 'Order/heartbeat');
 })->middleware('auth');
+
+// 支付回调路由（第三方回调）
+Route::group('order', function () {
+    Route::post('pay-callback', 'Order/payCallback');
+});

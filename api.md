@@ -665,3 +665,76 @@
   "data": null
 }
 ```
+
+### 3. 支付回调（测试伪回调）
+
+**请求地址**：`/order/pay-callback`  
+**请求方式**：POST  
+**是否需要 token**：否
+
+> 说明：当前第三方支付平台尚未接入，该接口先使用服务端接收参数模拟回调，再执行既定支付成功逻辑。
+
+**请求参数**：
+
+| 参数名 | 类型 | 必填 | 描述 |
+|-------|------|------|------|
+| order_no | string | 是 | 订单编号 |
+| amount | string | 是 | 回调支付金额（需与订单金额一致） |
+| payment_transaction_id | string | 否 | 第三方支付交易号 |
+| payment_method | string | 否 | 支付方式，默认 `WX` |
+| payment_status | int | 否 | 支付状态，当前仅支持 `1`（支付成功） |
+| payment_time | string | 否 | 支付时间（格式：`Y-m-d H:i:s`，默认当前时间） |
+
+**返回示例**：
+
+```json
+// 成功
+{
+  "code": 200,
+  "message": "支付回调处理成功",
+  "data": {
+    "order_no": "AM2026032412304599",
+    "payment_status": 1
+  }
+}
+
+// 幂等成功（已处理过）
+{
+  "code": 200,
+  "message": "订单已处理",
+  "data": {
+    "order_no": "AM2026032412304599"
+  }
+}
+
+// 失败
+{
+  "code": 400,
+  "message": "回调参数不完整",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "当前仅支持支付成功回调",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "订单不存在",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "回调金额与订单金额不一致",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "支付回调处理失败，请稍后重试",
+  "data": null
+}
+```

@@ -15,3 +15,21 @@ Route::group('user', function () {
     // 禁用用户
     Route::post('disable', 'User/disableUser');
 });
+
+// 实体相关路由
+Route::group('entity', function () {
+    // 获取实体分类列表
+    Route::get('category-list', 'Entity/categoryList');
+});
+
+// 地址相关路由
+Route::group('address', function () {
+    // 新增地址
+    Route::post('create', 'Address/create');
+    // 删除地址
+    Route::post('delete', 'Address/delete');
+    // 修改地址
+    Route::post('update', 'Address/update');
+    // 查询所有地址
+    Route::get('list', 'Address/list');
+});

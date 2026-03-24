@@ -3,6 +3,9 @@
 ## 接口新增记录
 
 - 2026-03-23：新增用户模块接口
+- 2026-03-24：新增实体模块接口（获取实体分类列表）
+- 2026-03-24：新增地址模块接口（地址增删改查）
+- 2026-03-24：更新地址新增接口（单用户地址上限5条）
 
 ## 用户模块
 
@@ -286,6 +289,261 @@
 {
   "code": 400,
   "message": "操作失败，请稍后重试",
+  "data": null
+}
+```
+
+## 实体模块
+
+### 1. 获取实体分类列表
+
+**请求地址**：`/entity/category-list`
+**请求方式**：GET
+**是否需要 token**：否
+**请求参数**：无
+
+**返回示例**：
+
+```json
+// 成功
+{
+  "code": 200,
+  "message": "获取实体分类成功",
+  "data": [
+    {
+      "id": 1,
+      "name": "基础款",
+      "price": "99.00",
+      "validity_period": 30,
+      "render_count": 20,
+      "description": "适合轻量体验",
+      "image_url": "https://example.com/category/basic.png",
+      "sort_order": 1
+    }
+  ]
+}
+
+// 失败
+{
+  "code": 500,
+  "message": "系统错误",
+  "data": null
+}
+```
+
+## 地址模块
+
+### 1. 新增地址
+
+**请求地址**：`/address/create`
+**请求方式**：POST
+**是否需要 token**：是
+**请求头**：
+- Authorization: Bearer {token}
+
+**请求参数**：
+
+| 参数名 | 类型 | 必填 | 描述 |
+|-------|------|------|------|
+| recipient | string | 是 | 收件人 |
+| phone | string | 是 | 手机号 |
+| province | string | 是 | 省份 |
+| city | string | 是 | 城市 |
+| district | string | 是 | 区县 |
+| address | string | 是 | 详细地址 |
+| zip_code | string | 否 | 邮政编码 |
+| is_default | int | 否 | 是否默认地址（1：是，0：否，默认0） |
+
+**返回示例**：
+
+```json
+// 成功
+{
+  "code": 200,
+  "message": "地址新增成功",
+  "data": {
+    "id": 1
+  }
+}
+
+// 失败
+{
+  "code": 401,
+  "message": "请先登录",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "参数不完整",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "最多只能添加5个地址",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "地址新增失败，请稍后重试",
+  "data": null
+}
+```
+
+### 2. 删除地址
+
+**请求地址**：`/address/delete`
+**请求方式**：POST
+**是否需要 token**：是
+**请求头**：
+- Authorization: Bearer {token}
+
+**请求参数**：
+
+| 参数名 | 类型 | 必填 | 描述 |
+|-------|------|------|------|
+| id | int | 是 | 地址ID |
+
+**返回示例**：
+
+```json
+// 成功
+{
+  "code": 200,
+  "message": "地址删除成功",
+  "data": null
+}
+
+// 失败
+{
+  "code": 401,
+  "message": "请先登录",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "参数不完整",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "地址不存在",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "地址删除失败，请稍后重试",
+  "data": null
+}
+```
+
+### 3. 修改地址
+
+**请求地址**：`/address/update`
+**请求方式**：POST
+**是否需要 token**：是
+**请求头**：
+- Authorization: Bearer {token}
+
+**请求参数**：
+
+| 参数名 | 类型 | 必填 | 描述 |
+|-------|------|------|------|
+| id | int | 是 | 地址ID |
+| recipient | string | 否 | 收件人 |
+| phone | string | 否 | 手机号 |
+| province | string | 否 | 省份 |
+| city | string | 否 | 城市 |
+| district | string | 否 | 区县 |
+| address | string | 否 | 详细地址 |
+| zip_code | string | 否 | 邮政编码 |
+| is_default | int | 否 | 是否默认地址（1：是，0：否） |
+
+**返回示例**：
+
+```json
+// 成功
+{
+  "code": 200,
+  "message": "地址修改成功",
+  "data": null
+}
+
+// 失败
+{
+  "code": 401,
+  "message": "请先登录",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "参数不完整",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "地址不存在",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "没有可更新的内容",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "地址修改失败，请稍后重试",
+  "data": null
+}
+```
+
+### 4. 查询所有地址
+
+**请求地址**：`/address/list`
+**请求方式**：GET
+**是否需要 token**：是
+**请求头**：
+- Authorization: Bearer {token}
+
+**请求参数**：无
+
+**返回示例**：
+
+```json
+// 成功
+{
+  "code": 200,
+  "message": "获取地址列表成功",
+  "data": [
+    {
+      "id": 1,
+      "recipient": "张三",
+      "phone": "13800000000",
+      "province": "广东省",
+      "city": "深圳市",
+      "district": "南山区",
+      "address": "科技园 1 号",
+      "zip_code": "518000",
+      "is_default": 1,
+      "created_at": "2026-03-24 10:00:00",
+      "updated_at": "2026-03-24 10:00:00"
+    }
+  ]
+}
+
+// 失败
+{
+  "code": 401,
+  "message": "请先登录",
   "data": null
 }
 ```

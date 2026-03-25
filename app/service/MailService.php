@@ -23,19 +23,26 @@ class MailService
     {
         try {
             $mail = new PHPMailer(true);
+            $mailHost = env('MAIL_HOST', 'smtp.163.com');
+            $mailUsername = env('MAIL_USERNAME', '');
+            $mailPassword = env('MAIL_PASSWORD', '');
+            $mailSecure = env('MAIL_ENCRYPTION', 'ssl');
+            $mailPort = (int)env('MAIL_PORT', 465);
+            $mailFromAddress = env('MAIL_FROM_ADDRESS', $mailUsername);
+            $mailFromName = env('MAIL_FROM_NAME', '爱制平台');
             
             // 服务器设置
             $mail->isSMTP();
-            $mail->Host = 'smtp.163.com';
+            $mail->Host = $mailHost;
             $mail->SMTPAuth = true;
-            $mail->Username = 'mrsongopen@163.com';
-            $mail->Password = 'VWiNGPhRMH2fZ259';
-            $mail->SMTPSecure = 'ssl';
-            $mail->Port = 465;
+            $mail->Username = $mailUsername;
+            $mail->Password = $mailPassword;
+            $mail->SMTPSecure = $mailSecure;
+            $mail->Port = $mailPort;
             $mail->CharSet = 'UTF-8';
             
             // 发件人
-            $mail->setFrom('mrsongopen@163.com', '爱制平台');
+            $mail->setFrom($mailFromAddress, $mailFromName);
             
             // 收件人
             $mail->addAddress($email);

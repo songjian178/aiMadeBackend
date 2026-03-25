@@ -4,6 +4,7 @@ declare (strict_types = 1);
 namespace app\controller;
 
 use app\BaseController;
+use app\enums\OrderStatusEnum;
 use think\facade\Db;
 
 class Order extends BaseController
@@ -134,7 +135,7 @@ class Order extends BaseController
                 'purchase_time' => $row['purchase_time'],
                 'expire_time' => $row['expire_time'],
                 'order_status' => $orderStatus,
-                'order_status_name' => $this->resolveOrderStatusName($orderStatus),
+                'order_status_name' => OrderStatusEnum::getName($orderStatus),
                 'total_amount' => (string)$row['total_amount'],
             ];
         }
@@ -276,19 +277,4 @@ class Order extends BaseController
         return $orderNo;
     }
 
-    /**
-     * 订单流程状态码 -> 展示名称（与 dataBase.md 中 order_status 一致）
-     */
-    private function resolveOrderStatusName(int $status): string
-    {
-        return match ($status) {
-            0 => '待使用',
-            1 => '生成中',
-            2 => '下单',
-            3 => '打样',
-            4 => '生产',
-            5 => '发货',
-            default => '未知状态',
-        };
-    }
 }

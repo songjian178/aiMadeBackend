@@ -52,6 +52,12 @@ Route::group('order', function () {
     Route::get('my-list', 'Order/myList');
 })->middleware('auth');
 
+// 图片相关路由
+Route::group('image', function () {
+    // 生成图片资格校验
+    Route::post('generate-image', 'Image/generateImage');
+})->middleware('auth');
+
 // 支付回调路由（第三方回调）
 Route::group('order', function () {
     Route::post('pay-callback', 'Order/payCallback');

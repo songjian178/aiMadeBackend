@@ -36,9 +36,9 @@ class NanoBananaService
      */
     public function generateImage(
         string $prompt,
-        string $model,
         string $aspectRatio = '3:4',
         string $imageSize = '2K',
+        string $model = 'nano-banana',
         bool $shotProgress = false
     ): array {
 

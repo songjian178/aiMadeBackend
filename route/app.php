@@ -56,6 +56,10 @@ Route::group('order', function () {
 Route::group('image', function () {
     // 生成图片资格校验
     Route::post('generate-image', 'Image/generateImage');
+    // 查询图片生成结果
+    Route::post('get-image-result', 'Image/getImageResult');
+    // 获取当前分类下用户的已生成图片
+    Route::post('generated-images', 'GeneratedImage/listByCategory');
 })->middleware('auth');
 
 // 支付回调路由（第三方回调）

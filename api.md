@@ -12,6 +12,8 @@
 - 2026-03-24：新增订单模块接口（订单心跳检测）
 - 2026-03-24：新增实体模块接口（获取实体分类列表-含用户可使用次数）
 - 2026-03-24：新增订单模块接口（生成图片资格校验）
+- 2026-03-24：新增图片模块接口（查询图片生成状态）
+- 2026-03-24：新增图片模块接口（获取当前分类下用户已生成图片）
 - 2026-03-24：新增图片模块接口（生成图片资格校验）
 - 2026-03-24：更新生成图片资格校验接口（按分类ID校验）
 
@@ -832,7 +834,7 @@
 }
 ```
 
-### 5. 生成图片接口（资格校验版）
+### 5. 生成图片接口
 
 **请求地址**：`/image/generate-image`
 **请求方式**：POST
@@ -845,8 +847,14 @@
 | 参数名 | 类型 | 必填 | 描述 |
 |-------|------|------|------|
 | category_id | int | 是 | 选中的实体分类ID |
+| prompt | string | 是 | 生成提示词 |
+| aspect_ratio | string | 否 | 宽高比，默认 `3:4` |
 
-**说明**：当前为占位实现，仅做资格校验。校验规则：
+**说明**：接口会先进行资格校验，然后调用 Nano-Banana 生成服务，并新增写入 `aimade_order_corpus` 与 `aimade_generated_image`。`aimade_generated_image.query_id` 存储第三方返回的 `result['data']['id']`，用于后续结果查询。
+
+生成参数固定为：`image_size='2K'`、`model='nano-banana'`、`shot_progress=false`（不需要前端传递）。
+
+校验规则：
 1. 当前用户在传入的 `category_id` 下存在 `payment_status = 1` 的订单；
 2. 订单状态为 `待使用(0)` 或 `生成中(1)`；
 3. 对应权益记录 `remaining_renders > 0` 且未过期（`expire_time > 当前时间`）。
@@ -854,17 +862,12 @@
 **返回示例**：
 
 ```json
-// 成功（可生成）
+// 成功（任务创建成功）
 {
   "code": 200,
-  "message": "校验通过，可进行生成",
+  "message": "图片生成任务创建成功",
   "data": {
-    "order_id": 1,
-    "order_no": "AM2026032412304599",
-    "order_status": 0,
-    "order_status_name": "待使用",
-    "remaining_renders": 17,
-    "expire_time": "2026-04-23 12:35:00"
+    "query_id": "67d3f3b4f7a123456789abcd",
   }
 }
 
@@ -884,6 +887,119 @@
 {
   "code": 400,
   "message": "当前无可用订单，请先购买或检查剩余生成次数",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "生成图片请求失败，请稍后重试",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "生成任务创建失败，请稍后重试",
+  "data": null
+}
+```
+
+### 6. 查询图片生成状态
+
+**请求地址**：`/image/get-image-result`
+**请求方式**：POST
+**是否需要 token**：是
+**请求头**：
+- Authorization: Bearer {token}
+
+**请求参数**：
+
+| 参数名 | 类型 | 必填 | 描述 |
+|-------|------|------|------|
+| query_id | string | 否 | 第三方生成图片返回的唯一ID（generate-image 接口返回） |
+| render_query_id | string | 否 | 第三方渲染任务唯一ID（如有） |
+
+> 至少传入一个：`query_id` 或 `render_query_id`
+
+**说明**：调用 `NanoBananaService->getImageResult()` 查询当前任务状态。
+
+- 当返回状态为 `running`：返回 `status=0`；
+- 当返回状态为 `succeeded`：从 `result['data']['results'][0]['url']` 取出图片地址，并根据你传入的 id 把 `aimade_generated_image.image_url` 或 `aimade_generated_image.render_url` 回填，同时返回 `data.url`。
+
+**返回示例**：
+
+```json
+// 成功（生成中）
+{
+  "code": 200,
+  "message": "查询图片生成结果成功",
+  "data": {
+    "status": 0,
+    "message": "图片正在生成中"
+  }
+}
+
+// 成功（生成成功）
+{
+  "code": 200,
+  "message": "查询图片生成结果成功",
+  "data": {
+    "status": 1,
+    "message": "图片生成成功",
+    "url": "https://example.com/image.png"
+  }
+}
+
+// 失败
+{
+  "code": 400,
+  "message": "参数不完整",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "图片任务不存在",
+  "data": null
+}
+```
+
+### 7. 获取当前分类下用户的已生成图片
+
+**请求地址**：`/image/generated-images`
+**请求方式**：POST
+**是否需要 token**：是
+**请求头**：
+- Authorization: Bearer {token}
+
+**请求参数**：
+
+| 参数名 | 类型 | 必填 | 描述 |
+|-------|------|------|------|
+| category_id | int | 是 | 实体分类ID |
+
+**说明**：根据当前用户的 `aimade_entity_order`（`payment_status=1` 且 `order_status=1`：生成中）筛选已生成的图片，返回 `aimade_generated_image` 中对应记录的 `image_url/render_url/corpus_id`，以及 `aimade_order_corpus.prompt`。
+
+**返回示例**：
+
+```json
+// 成功
+{
+  "code": 200,
+  "message": "获取生成图片列表成功",
+  "data": [
+    {
+      "image_url": "https://example.com/image.png",
+      "render_url": "https://example.com/render.png",
+      "corpus_id": 12,
+      "prompt": "示例提示词"
+    }
+  ]
+}
+
+// 失败
+{
+  "code": 400,
+  "message": "参数不完整",
   "data": null
 }
 ```

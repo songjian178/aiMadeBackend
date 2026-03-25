@@ -83,7 +83,7 @@
 | address_id | int | 11 | NULL | 地址ID（外键：aimade_user_address.id） |
 | payment_method | varchar | 20 | NULL | 支付方式 |
 | payment_status | tinyint | 1 | DEFAULT 0 | 支付状态（0：未支付，1：已支付，2：支付失败） |
-| order_status | tinyint | 1 | DEFAULT 0 | 订单状态（0：初始化，1：生成中，2：下单，3：打样，4：生产，5：发货） |
+| order_status | tinyint | 1 | DEFAULT 0 | 订单状态（0：待使用，1：生成中，2：下单，3：打样，4：生产，5：发货） |
 | status | tinyint | 1 | DEFAULT 1 | 状态（1：有效，0：无效） |
 | created_at | datetime | - | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
 | updated_at | datetime | - | DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间 |
@@ -213,7 +213,7 @@
 | id | int | 11 | PRIMARY KEY, AUTO_INCREMENT | 记录ID |
 | order_id | int | 11 | NOT NULL | 订单ID（外键：aimade_entity_order.id） |
 | user_id | int | 11 | NOT NULL | 用户ID（外键：aimade_user.id） |
-| status | tinyint | 1 | NOT NULL | 订单状态（0：初始化，1：生成中，2：下单，3：打样，4：生产，5：发货） |
+| status | tinyint | 1 | NOT NULL | 订单状态（0：待使用，1：生成中，2：下单，3：打样，4：生产，5：发货） |
 | remark | text | - | NULL | 状态备注 |
 | created_at | datetime | - | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
 | updated_at | datetime | - | DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间 |
@@ -493,7 +493,7 @@ CREATE TABLE `aimade_entity_order` (
   `address_id` int(11) DEFAULT NULL COMMENT '地址ID',
   `payment_method` varchar(20) DEFAULT NULL COMMENT '支付方式',
   `payment_status` tinyint(1) DEFAULT '0' COMMENT '支付状态（0：未支付，1：已支付，2：支付失败）',
-  `order_status` tinyint(1) DEFAULT '0' COMMENT '订单状态（0：初始化，1：生成中，2：下单，3：打样，4：生产，5：发货）',
+  `order_status` tinyint(1) DEFAULT '0' COMMENT '订单状态（0：待使用，1：生成中，2：下单，3：打样，4：生产，5：发货）',
   `status` tinyint(1) DEFAULT '1' COMMENT '状态（1：有效，0：无效）',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -623,7 +623,7 @@ CREATE TABLE `aimade_order_status` (
   `id` int(11) NOT NULL AUTO_INCREMENT COMMENT '记录ID',
   `order_id` int(11) NOT NULL COMMENT '订单ID',
   `user_id` int(11) NOT NULL COMMENT '用户ID',
-  `status` tinyint(1) NOT NULL COMMENT '订单状态（0：初始化，1：生成中，2：下单，3：打样，4：生产，5：发货）',
+  `status` tinyint(1) NOT NULL COMMENT '订单状态（0：待使用，1：生成中，2：下单，3：打样，4：生产，5：发货）',
   `remark` text COMMENT '状态备注',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',

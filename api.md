@@ -7,6 +7,8 @@
 - 2026-03-24：新增地址模块接口（地址增删改查）
 - 2026-03-24：更新地址新增接口（单用户地址上限5条）
 - 2026-03-24：新增订单模块接口（生成订单二维码）
+- 2026-03-24：新增订单模块接口（我的订单列表）
+- 2026-03-24：更新我的订单列表接口（增加权益过期时间 expire_time）
 - 2026-03-24：新增订单模块接口（订单心跳检测）
 
 ## 用户模块
@@ -666,9 +668,53 @@
 }
 ```
 
-### 3. 支付回调（测试伪回调）
+### 3. 我的订单列表
 
-**请求地址**：`/order/pay-callback`  
+**请求地址**：`/order/my-list`  
+**请求方式**：GET  
+**是否需要 token**：是  
+**请求头**：
+- Authorization: Bearer {token}
+
+**请求参数**：无  
+
+**说明**：仅返回当前用户 `payment_status = 1`（已支付）的订单；数据由 `aimade_entity_order` 与 `aimade_user_purchased_entity` 内连表得到，并关联品类表展示名称与套餐渲染次数。购买时间取购买权益记录创建时间；`expire_time` 为 `aimade_user_purchased_entity.expire_time`（权益使用过期时间）。`order_status_name` 与库中枚举对应：0 待使用、1 生成中、2 下单、3 打样、4 生产、5 发货。
+
+**返回示例**：
+
+```json
+// 成功
+{
+  "code": 200,
+  "message": "获取订单列表成功",
+  "data": [
+    {
+      "order_id": 1,
+      "order_no": "AM2026032412304599",
+      "category_name": "基础款",
+      "initial_render_count": 20,
+      "used_render_count": 3,
+      "remaining_render_count": 17,
+      "purchase_time": "2026-03-24 12:35:00",
+      "expire_time": "2026-04-23 12:35:00",
+      "order_status": 0,
+      "order_status_name": "待使用",
+      "total_amount": "99.00"
+    }
+  ]
+}
+
+// 失败
+{
+  "code": 401,
+  "message": "请先登录",
+  "data": null
+}
+```
+
+### 4. 支付回调（测试伪回调）
+
+**请求地址**：`/order/pay-callback`    
 **请求方式**：POST  
 **是否需要 token**：否
 
@@ -681,8 +727,8 @@
 | order_no | string | 是 | 订单编号 |
 | amount | string | 是 | 回调支付金额（需与订单金额一致） |
 | payment_transaction_id | string | 否 | 第三方支付交易号 |
-| payment_method | string | 否 | 支付方式，默认 `WX` |
-| payment_status | int | 否 | 支付状态，当前仅支持 `1`（支付成功） |
+<!-- | payment_method | string | 否 | 支付方式，默认 `WX` |
+| payment_status | int | 否 | 支付状态，当前仅支持 `1`（支付成功） | -->
 | payment_time | string | 否 | 支付时间（格式：`Y-m-d H:i:s`，默认当前时间） |
 
 **返回示例**：

@@ -43,6 +43,8 @@ Route::group('order', function () {
     Route::post('create-pay-qrcode', 'Order/createPayQrCode');
     // 订单心跳检测
     Route::post('heartbeat', 'Order/heartbeat');
+    // 我的订单列表（已支付）
+    Route::get('my-list', 'Order/myList');
 })->middleware('auth');
 
 // 支付回调路由（第三方回调）

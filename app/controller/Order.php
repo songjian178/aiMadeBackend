@@ -93,6 +93,56 @@ class Order extends BaseController
     }
 
     /**
+     * 我的订单列表（仅已支付订单，连表购买实体权益）
+     * @return \think\Response
+     */
+    public function myList()
+    {
+        $userId = $this->getCurrentUserId();
+
+        $rows = Db::name('entity_order')
+            ->alias('o')
+            ->join('user_purchased_entity upe', 'upe.order_id = o.id AND upe.user_id = o.user_id')
+            ->join('entity_category c', 'c.id = o.category_id')
+            ->field('o.id as order_id,o.order_no,o.order_status,o.total_amount,c.name as category_name,c.render_count as initial_render_count,upe.remaining_renders,upe.expire_time,upe.created_at as purchase_time')
+            ->where('o.user_id', $userId)
+            ->where('o.payment_status', 1)
+            ->where('o.status', 1)
+            ->whereNull('o.deleted_at')
+            ->where('upe.status', 1)
+            ->whereNull('upe.deleted_at')
+            ->where('c.status', 1)
+            ->whereNull('c.deleted_at')
+            ->order('o.id', 'desc')
+            ->select()
+            ->toArray();
+
+        $list = [];
+        foreach ($rows as $row) {
+            $initial = (int)($row['initial_render_count'] ?? 0);
+            $remaining = (int)($row['remaining_renders'] ?? 0);
+            $used = max(0, $initial - $remaining);
+
+            $orderStatus = (int)($row['order_status'] ?? 0);
+            $list[] = [
+                'order_id' => (int)$row['order_id'],
+                'order_no' => (string)$row['order_no'],
+                'category_name' => (string)$row['category_name'],
+                'initial_render_count' => $initial,
+                'used_render_count' => $used,
+                'remaining_render_count' => $remaining,
+                'purchase_time' => $row['purchase_time'],
+                'expire_time' => $row['expire_time'],
+                'order_status' => $orderStatus,
+                'order_status_name' => $this->resolveOrderStatusName($orderStatus),
+                'total_amount' => (string)$row['total_amount'],
+            ];
+        }
+
+        return $this->success($list, '获取订单列表成功');
+    }
+
+    /**
      * 支付回调（当前使用伪造回调数据）
      * @return \think\Response
      */
@@ -112,9 +162,9 @@ class Order extends BaseController
             return $this->error('回调参数不完整');
         }
 
-        if ($callbackData['payment_status'] !== 1) {
-            return $this->error('当前仅支持支付成功回调');
-        }
+        // if ($callbackData['payment_status'] !== 1) {
+        //     return $this->error('当前仅支持支付成功回调');
+        // }
 
         $order = Db::name('entity_order')
             ->where('order_no', $callbackData['order_no'])
@@ -159,7 +209,7 @@ class Order extends BaseController
                 'order_id' => (int)$order['id'],
                 'user_id' => (int)$order['user_id'],
                 'status' => 0,
-                'remark' => '支付完成，订单进入初始化流程'
+                'remark' => '支付完成，订单进入待使用流程'
             ]);
 
             $expireTime = date('Y-m-d H:i:s', strtotime('+' . (int)$category['validity_period'] . ' days'));
@@ -224,5 +274,21 @@ class Order extends BaseController
         } while ($exists);
 
         return $orderNo;
+    }
+
+    /**
+     * 订单流程状态码 -> 展示名称（与 dataBase.md 中 order_status 一致）
+     */
+    private function resolveOrderStatusName(int $status): string
+    {
+        return match ($status) {
+            0 => '待使用',
+            1 => '生成中',
+            2 => '下单',
+            3 => '打样',
+            4 => '生产',
+            5 => '发货',
+            default => '未知状态',
+        };
     }
 }

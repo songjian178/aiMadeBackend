@@ -10,6 +10,7 @@
 - 2026-03-24：新增订单模块接口（我的订单列表）
 - 2026-03-24：更新我的订单列表接口（增加权益过期时间 expire_time）
 - 2026-03-24：新增订单模块接口（订单心跳检测）
+- 2026-03-24：新增实体模块接口（获取实体分类列表-含用户可使用次数）
 
 ## 用户模块
 
@@ -331,6 +332,45 @@
 {
   "code": 500,
   "message": "系统错误",
+  "data": null
+}
+```
+
+### 2. 获取实体分类列表（含用户可使用次数）
+
+**请求地址**：`/entity/category-list-with-usage`
+**请求方式**：GET
+**是否需要 token**：是
+**请求头**：
+- Authorization: Bearer {token}
+**请求参数**：无
+
+**返回示例**：
+
+```json
+// 成功
+{
+  "code": 200,
+  "message": "获取实体分类成功",
+  "data": [
+    {
+      "id": 1,
+      "name": "基础款",
+      "price": "99.00",
+      "validity_period": 30,
+      "render_count": 20,
+      "description": "适合轻量体验",
+      "image_url": "https://example.com/category/basic.png",
+      "sort_order": 1,
+      "user_available_count": 17
+    }
+  ]
+}
+
+// 失败
+{
+  "code": 401,
+  "message": "请先登录",
   "data": null
 }
 ```

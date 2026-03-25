@@ -25,6 +25,11 @@ Route::group('entity', function () {
     Route::get('category-list', 'Entity/categoryList');
 });
 
+Route::group('entity', function () {
+    // 获取实体分类列表（含当前用户可使用次数）
+    Route::get('category-list-with-usage', 'Entity/categoryListWithUsage');
+})->middleware('auth');
+
 // 地址相关路由
 Route::group('address', function () {
     // 新增地址

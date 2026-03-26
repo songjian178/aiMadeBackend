@@ -22,6 +22,35 @@ class Order extends BaseController
             return $this->error('参数不完整');
         }
 
+        // 若用户已购买该分类且订单处于“待使用/生成中”，则不再返回支付二维码
+        $existingUseable = Db::name('entity_order')
+            ->alias('o')
+            ->join('user_purchased_entity upe', 'upe.order_id = o.id AND upe.user_id = o.user_id')
+            ->field('o.id as order_id,o.order_no,o.order_status,upe.remaining_renders,upe.expire_time')
+            ->where('o.user_id', $userId)
+            ->where('o.category_id', $categoryId)
+            ->where('o.payment_status', 1)
+            ->where('o.order_status', 'in', [0, 1])
+            ->where('o.status', 1)
+            ->whereNull('o.deleted_at')
+            ->where('upe.status', 1)
+            ->whereNull('upe.deleted_at')
+            ->where('upe.remaining_renders', '>', 0)
+            ->where('upe.expire_time', '>', date('Y-m-d H:i:s'))
+            ->order('o.id', 'desc')
+            ->find();
+
+        if ($existingUseable) {
+            return $this->success([
+                // 'order_id' => (int)$existingUseable['order_id'],
+                'order_no' => (string)$existingUseable['order_no'],
+                // 'order_status' => (int)$existingUseable['order_status'],
+                // 'order_status_name' => OrderStatusEnum::getName((int)$existingUseable['order_status']),
+                // 'remaining_renders' => (int)$existingUseable['remaining_renders'],
+                // 'expire_time' => $existingUseable['expire_time']
+            ], '已有可用订单，无需支付');
+        }
+
         $category = Db::name('entity_category')
             ->where('id', $categoryId)
             ->where('status', 1)

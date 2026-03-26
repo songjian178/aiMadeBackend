@@ -632,6 +632,20 @@
   }
 }
 
+// 成功（已有可用订单，无需支付）
+{
+  "code": 200,
+  "message": "已有可用订单，无需支付",
+  "data": {
+    "order_id": 1,
+    "order_no": "AM2026032412304599",
+    "order_status": 0,
+    "order_status_name": "待使用",
+    "remaining_renders": 17,
+    "expire_time": "2026-04-23 12:35:00"
+  }
+}
+
 // 失败
 {
   "code": 401,

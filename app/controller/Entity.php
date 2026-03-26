@@ -50,4 +50,64 @@ class Entity extends BaseController
 
         return $this->success($list, '获取实体分类成功');
     }
+
+    /**
+     * 用户制作历史
+     * 外层：用户当前购买的实体权益（未过期）
+     * 内层：该权益下已生成的图片
+     * @return \think\Response
+     */
+    public function makeHistory()
+    {
+        $userId = $this->getCurrentUserId();
+        $now = date('Y-m-d H:i:s');
+
+        $rows = Db::name('user_purchased_entity')
+            ->alias('upe')
+            ->join('entity_category ec', 'ec.id = upe.category_id', 'inner')
+            ->leftJoin('entity_order o', 'o.id = upe.order_id AND o.user_id = upe.user_id AND o.status = 1 AND o.deleted_at IS NULL AND o.payment_status = 1')
+            ->leftJoin('order_corpus oc', 'oc.order_id = o.id AND oc.status = 1 AND oc.deleted_at IS NULL')
+            ->leftJoin('generated_image gi', 'gi.corpus_id = oc.id AND gi.status = 1 AND gi.deleted_at IS NULL')
+            ->field('upe.id as purchased_entity_id,upe.category_id,upe.order_id,upe.expire_time,upe.remaining_renders,ec.name as category_name,' .
+                'gi.image_url,gi.render_url,gi.corpus_id,oc.prompt')
+            ->where('upe.user_id', $userId)
+            ->where('upe.status', 1)
+            ->whereNull('upe.deleted_at')
+            ->where('upe.expire_time', '>', $now)
+            ->where('ec.status', 1)
+            ->whereNull('ec.deleted_at')
+            ->order('upe.id', 'desc')
+            ->select()
+            ->toArray();
+
+        // 以 purchased_entity_id 聚合二维结构
+        $map = [];
+        foreach ($rows as $row) {
+            $key = (int)$row['purchased_entity_id'];
+            if (!isset($map[$key])) {
+                $map[$key] = [
+                    'purchased_entity_id' => (int)$row['purchased_entity_id'],
+                    'category_id' => (int)$row['category_id'],
+                    'category_name' => (string)$row['category_name'],
+                    'order_id' => (int)$row['order_id'],
+                    'remaining_renders' => (int)($row['remaining_renders'] ?? 0),
+                    'expire_time' => $row['expire_time'],
+                    'images' => []
+                ];
+            }
+
+            // 左连接时无图片：gi.corpus_id 可能为空
+            $corpusId = $row['corpus_id'] ?? null;
+            if ($corpusId !== null && $corpusId !== '') {
+                $map[$key]['images'][] = [
+                    'image_url' => $row['image_url'],
+                    'render_url' => $row['render_url'],
+                    'corpus_id' => (int)$row['corpus_id'],
+                    'prompt' => $row['prompt']
+                ];
+            }
+        }
+
+        return $this->success(array_values($map), '获取用户制作历史成功');
+    }
 }

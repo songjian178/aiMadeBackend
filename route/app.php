@@ -28,6 +28,8 @@ Route::group('entity', function () {
 Route::group('entity', function () {
     // 获取实体分类列表（含当前用户可使用次数）
     Route::get('category-list-with-usage', 'Entity/categoryListWithUsage');
+    // 用户制作历史
+    Route::get('make-history', 'Entity/makeHistory');
 })->middleware('auth');
 
 // 地址相关路由

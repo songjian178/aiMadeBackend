@@ -16,6 +16,7 @@
 - 2026-03-24：新增图片模块接口（获取当前分类下用户已生成图片）
 - 2026-03-24：新增图片模块接口（生成图片资格校验）
 - 2026-03-24：更新生成图片资格校验接口（按分类ID校验）
+- 2026-03-25：新增实体模块接口（用户制作历史）
 
 ## 用户模块
 
@@ -381,6 +382,44 @@
   "code": 401,
   "message": "请先登录",
   "data": null
+}
+```
+
+### 3. 用户制作历史
+
+**请求地址**：`/entity/make-history`
+**请求方式**：GET
+**是否需要 token**：是
+**请求头**：
+- Authorization: Bearer {token}
+
+**请求参数**：无
+
+**返回示例**：
+
+```json
+// 成功
+{
+  "code": 200,
+  "message": "获取用户制作历史成功",
+  "data": [
+    {
+      "purchased_entity_id": 1,
+      "category_id": 1,
+      "category_name": "基础款",
+      "order_id": 1,
+      "remaining_renders": 17,
+      "expire_time": "2026-04-23 12:35:00",
+      "images": [
+        {
+          "image_url": "https://example.com/image.png",
+          "render_url": "https://example.com/render.png",
+          "corpus_id": 12,
+          "prompt": "示例提示词"
+        }
+      ]
+    }
+  ]
 }
 ```
 

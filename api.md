@@ -17,6 +17,7 @@
 - 2026-03-24：新增图片模块接口（生成图片资格校验）
 - 2026-03-24：更新生成图片资格校验接口（按分类ID校验）
 - 2026-03-25：新增实体模块接口（用户制作历史）
+- 2026-03-25：更新生成图片接口（增加分享到社区参数）
 
 ## 用户模块
 
@@ -902,8 +903,11 @@
 | category_id | int | 是 | 选中的实体分类ID |
 | prompt | string | 是 | 生成提示词 |
 | aspect_ratio | string | 否 | 宽高比，默认 `3:4` |
+| share_to_community | int | 否 | 是否分享到社区（1：是，0：否，默认0） |
 
 **说明**：接口会先进行资格校验，然后调用 Nano-Banana 生成服务，并新增写入 `aimade_order_corpus` 与 `aimade_generated_image`。`aimade_generated_image.query_id` 存储第三方返回的 `result['data']['id']`，用于后续结果查询。
+
+当 `share_to_community=1` 时，会先在 `aimade_creative_community` 创建一条收录记录（`status=0`，待图片生成完成），其中 `image_id` 关联本次 `generated_image` 记录，标题取 `prompt` 前100字符，描述为 `prompt`。
 
 生成参数固定为：`image_size='2K'`、`model='nano-banana'`、`shot_progress=false`（不需要前端传递）。
 
@@ -976,7 +980,7 @@
 **说明**：调用 `NanoBananaService->getImageResult()` 查询当前任务状态。
 
 - 当返回状态为 `running`：返回 `status=0`；
-- 当返回状态为 `succeeded`：从 `result['data']['results'][0]['url']` 取出图片地址，并根据你传入的 id 把 `aimade_generated_image.image_url` 或 `aimade_generated_image.render_url` 回填，同时返回 `data.url`。
+- 当返回状态为 `succeeded`：从 `result['data']['results'][0]['url']` 取出图片地址，并根据你传入的 id 把 `aimade_generated_image.image_url` 或 `aimade_generated_image.render_url` 回填，同时返回 `data.url`；若该任务在社区中有预创建记录（`status=0`），则会同步更新为 `status=1`。
 
 **返回示例**：
 

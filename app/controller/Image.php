@@ -26,6 +26,7 @@ class Image extends BaseController
         $userId = $this->getCurrentUserId();
         $categoryId = (int)$this->request->post('category_id');
         $prompt = trim((string)$this->request->post('prompt', ''));
+        $shareToCommunity = (int)$this->request->post('share_to_community', 0) === 1;
         if ($categoryId <= 0 || $prompt === '') {
             return $this->error('参数不完整');
         }
@@ -134,6 +135,25 @@ class Image extends BaseController
                 'render_query_id' => "",
                 'status' => 1
             ]);
+
+            // 勾选分享到社区时，创建社区收录记录
+            if ($shareToCommunity) {
+                $title = function_exists('mb_substr') ? mb_substr($prompt, 0, 100, 'UTF-8') : substr($prompt, 0, 100);
+                if ($title === '') {
+                    $title = 'AI生成作品';
+                }
+
+                Db::name('creative_community')->insert([
+                    'image_id' => (int)$generatedImageId,
+                    'user_id' => $userId,
+                    'title' => $title,
+                    'description' => $prompt,
+                    'likes_count' => 0,
+                    'views_count' => 0,
+                    'is_public' => 1,
+                    'status' => 0
+                ]);
+            }
 
             Db::commit();
         } catch (\Throwable $e) {
@@ -244,6 +264,13 @@ class Image extends BaseController
             }
 
             Db::name('generated_image')->where('id', (int)$generated['id'])->update($update);
+
+            // 图片真正生成成功后，公开到社区（将预创建记录置为有效）
+            Db::name('creative_community')
+                ->where('image_id', (int)$generated['id'])
+                ->where('user_id', $userId)
+                ->where('status', 0)
+                ->update(['status' => 1]);
 
             $this->writeLog('image_result', '图片生成完成', $userId);
 

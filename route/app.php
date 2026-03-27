@@ -71,3 +71,11 @@ Route::post('image/shared-creatives', 'Image/sharedCreativeImages');
 Route::group('order', function () {
     Route::post('pay-callback', 'Order/payCallback');
 });
+
+// 微信支付相关路由
+Route::group('pay', function () {
+    // 生成微信支付二维码
+    Route::post('create-qr-code', 'Pay/createQrCode');
+    // 微信支付回调
+    Route::post('notify', 'Pay/notify');
+});

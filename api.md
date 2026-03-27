@@ -18,6 +18,7 @@
 - 2026-03-24：更新生成图片资格校验接口（按分类ID校验）
 - 2026-03-25：新增实体模块接口（用户制作历史）
 - 2026-03-25：更新生成图片接口（增加分享到社区参数）
+- 2026-03-27：新增图片模块接口（获取用户分享的创意图片）
 
 ## 用户模块
 
@@ -1059,4 +1060,44 @@
   "message": "参数不完整",
   "data": null
 }
+```
+
+### 8. 获取用户分享的创意图片
+
+**请求地址**：`/image/shared-creatives`
+**请求方式**：POST
+**是否需要 token**：否
+
+**请求参数**：无
+
+**说明**：根据 `aimade_creative_community`（`status=1`）筛选已分享的创意图片，并联表 `aimade_generated_image` 与 `aimade_order_corpus` 获取展示数据。
+
+接口字段说明：
+- `aimade_generated_image`：只返回 `image_url/render_url`
+- `aimade_creative_community`：返回 `creative_id/title/description/likes_count/views_count/is_public`
+- `aimade_order_corpus`：返回 `corpus_id/prompt`
+
+**返回示例**：
+```json
+// 成功
+{
+  "code": 200,
+  "message": "获取用户分享的创意图片成功",
+  "data": [
+    {
+      "image_url": "https://example.com/image.png",
+      "render_url": "https://example.com/render.png",
+      "creative_id": 1,
+      "title": "示例标题",
+      "description": "示例描述",
+      "likes_count": 0,
+      "views_count": 0,
+      "is_public": 1,
+      "corpus_id": 12,
+      "prompt": "示例提示词"
+    }
+  ]
+}
+
+// 失败（无数据时一般仍返回 200，data 为 []）
 ```

@@ -64,6 +64,9 @@ Route::group('image', function () {
     Route::post('generated-images', 'GeneratedImage/listByCategory');
 })->middleware('auth');
 
+// 图片相关公开路由（不需要 token）
+Route::post('image/shared-creatives', 'Image/sharedCreativeImages');
+
 // 支付回调路由（第三方回调）
 Route::group('order', function () {
     Route::post('pay-callback', 'Order/payCallback');

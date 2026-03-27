@@ -332,5 +332,29 @@ class Image extends BaseController
             'message' => '图片生成处理中'
         ], '查询图片生成结果成功');
     }
+
+    /**
+     * 获取用户分享的创意图片
+     * @return \think\Response
+     */
+    public function sharedCreativeImages()
+    {
+        // 只展示已分享（status=1）的社区收录记录，并返回图片/渲染两类地址
+        $list = Db::name('creative_community')->alias('cc')
+            ->join('generated_image gi', 'gi.id = cc.image_id')
+            ->join('order_corpus oc', 'oc.id = gi.corpus_id')
+            ->field('cc.id as creative_id, cc.title, cc.description, cc.likes_count, cc.views_count, cc.is_public, oc.id as corpus_id, oc.prompt, gi.image_url, gi.render_url')
+            ->where('cc.status', 1)
+            ->whereNull('cc.deleted_at')
+            ->where('gi.status', 1)
+            ->whereNull('gi.deleted_at')
+            ->where('oc.status', 1)
+            ->whereNull('oc.deleted_at')
+            ->order('cc.id', 'desc')
+            ->select()
+            ->toArray();
+
+        return $this->success($list, '获取用户分享的创意图片成功');
+    }
 }
 

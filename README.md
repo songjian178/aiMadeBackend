@@ -370,115 +370,80 @@ Route::group('address', function () {
 
 1. **公开接口**（如登录、注册、获取验证码）不挂载 `auth` 中间件。
 2. **需登录接口**（如修改密码、地址管理等）统一在路由层挂载 `auth` 中间件。
-3. 控制器中保留业务逻辑处理，避免重复写“是否登录”的判断代码。
+3. 控制器中保留业务逻辑处理，避免重复写"是否登录"的判断代码。
 
 ## 微信支付功能使用说明
 
-本项目已集成微信支付功能，支持扫码支付方式。
+本项目已集成微信支付 APIv3 版本，支持 Native 支付（扫码支付）。
 
-### 配置说明
+### 微信支付 APIv3 文档参考
 
-在 `.env` 文件中配置微信支付相关参数：
+- [Native 下单](https://pay.weixin.qq.com/doc/v3/merchant/4012791877)
+- [APIv3 签名规则](https://pay.weixin.qq.com/doc/v3/merchant/4012365342)
+
+### 需要提供的配置信息
+
+在使用微信支付功能前，你需要准备以下配置：
+
+#### 1. 基础配置（.env 文件）
 
 ```env
 # 微信支付配置
-WECHAT_PAY_APPID=your-appid
-WECHAT_PAY_MCHID=your-mch-id
-WECHAT_PAY_API_KEY=your-api-key
-WECHAT_PAY_NOTIFY_URL=http://your-domain/pay/notify
+WECHAT_PAY_APPID=你的微信APPID
+WECHAT_PAY_MCHID=你的微信商户号
+WECHAT_PAY_API_KEY=你的APIv3密钥
+WECHAT_PAY_NOTIFY_URL=https://你的域名/pay/notify
+WECHAT_PAY_CERT_PATH=/path/to/apiclient_cert.pem
+WECHAT_PAY_KEY_PATH=/path/to/apiclient_key.pem
 ```
+
+#### 2. 需要申请的证书和密钥
+
+| 配置项 | 说明 | 获取方式 |
+|--------|------|----------|
+| `WECHAT_PAY_APPID` | 微信应用ID | 微信开放平台或微信公众平台申请 |
+| `WECHAT_PAY_MCHID` | 微信商户号 | 微信支付商户平台申请 |
+| `WECHAT_PAY_API_KEY` | APIv3密钥 | 微信支付商户平台 -> API安全 -> 设置APIv3密钥 |
+| `WECHAT_PAY_CERT_PATH` | 商户API证书路径 | 微信支付商户平台 -> API安全 -> 申请API证书 |
+| `WECHAT_PAY_KEY_PATH` | 商户API私钥路径 | 下载证书时同时获得 |
+
+#### 3. 证书申请步骤
+
+1. 登录 [微信支付商户平台](https://pay.weixin.qq.com/)
+2. 进入【账户中心】->【API安全】
+3. 申请API证书（如已申请可跳过）
+4. 下载证书文件，包含：
+   - `apiclient_cert.pem` - 商户API证书
+   - `apiclient_key.pem` - 商户API私钥
+5. 设置APIv3密钥（32位随机字符串）
 
 ### 核心服务类
 
-- `app/service/WechatPayService.php` - 微信支付服务类，提供生成支付二维码和处理回调的功能
+- `app/service/WechatPayService.php` - 微信支付服务类
 
-### 支付相关接口
+### 微信支付签名机制（APIv3）
 
-#### 生成微信支付二维码
-- **接口地址**：`POST /pay/create-qr-code`
-- **请求参数**：
-  - `out_trade_no`：商户订单号（必填）
-  - `total_fee`：订单金额（元，必填）
-  - `body`：商品描述（必填）
-  - `attach`：附加数据（选填）
-- **返回结果**：
-  ```json
-  {
-    "code": 200,
-    "message": "生成支付二维码成功",
-    "data": {
-      "code_url": "weixin://wxpay/bizpayurl?pr=xxxxxx",
-      "out_trade_no": "订单号"
-    }
-  }
-  ```
+微信支付APIv3使用 **RSA-SHA256** 签名算法，签名串格式如下：
 
-#### 微信支付回调
-- **接口地址**：`POST /pay/notify`
-- **说明**：此接口由微信服务器调用，用于通知支付结果
-
-### 使用示例
-
-#### 生成支付二维码
-
-```php
-// 在控制器中使用
-use app\service\WechatPayService;
-
-public function createPay()
-{
-    $outTradeNo = 'ORDER_' . date('YmdHis') . rand(1000, 9999);
-    $totalFee = 100.00; // 100元
-    $body = '测试商品';
-    $attach = '测试附加数据';
-
-    $wechatPayService = new WechatPayService();
-    $result = $wechatPayService->createQrCode($outTradeNo, $totalFee * 100, $body, $attach);
-
-    // 生成二维码图片
-    // 可以使用第三方库如 endroid/qr-code 生成二维码图片
-
-    return $this->success($result, '生成支付二维码成功');
-}
+```
+HTTP请求方法\n
+请求URL\n
+请求时间戳\n
+请求随机串\n
+请求报文主体\n
 ```
 
-#### 处理支付回调
+示例：
+```
+POST
+/v3/pay/transactions/native
+1554208460
+593BEC0C930BF1AFEB40B4A08C8FB242
+{"appid":"wxd678efh567hg6787","mchid":"1230000109","description":"Image形象店-深圳腾大-QQ公仔","out_trade_no":"1217752501201407033233368018","notify_url":"https://www.weixin.qq.com/wxpay/pay.php","amount":{"total":100,"currency":"CNY"}}
 
-微信支付回调已在 `Pay` 控制器中实现，当用户支付成功后，微信服务器会调用 `POST /pay/notify` 接口，服务端会自动处理回调并更新订单状态。
+```
 
-### 注意事项
-
-1. **回调地址配置**：
-   - 回调地址必须是外网可访问的域名
-   - 回调地址不能带参数
-   - 回调地址必须使用 `http://` 或 `https://` 协议
-
-2. **安全验证**：
-   - 服务端会验证微信回调的签名，确保数据的真实性
-   - 处理回调时需要验证订单状态，避免重复处理
-
-3. **订单处理**：
-   - 在回调处理中，需要更新订单状态为已支付
-   - 建议使用事务处理，确保订单状态更新和库存扣减的原子性
-
-4. **日志记录**：
-   - 建议记录支付相关的日志，便于排查问题
-   - 特别是回调处理的日志，便于追踪支付状态
-
-### 所需材料
-
-要使用微信支付功能，您需要准备以下材料：
-
-1. **微信支付商户号**：在 [微信支付商户平台](https://pay.weixin.qq.com/) 注册并获取
-2. **AppID**：可以使用公众号 AppID 或小程序 AppID
-3. **API 密钥**：在微信支付商户平台设置，用于签名验证
-4. **回调域名**：需要在微信支付商户平台配置，确保回调地址可访问
-
-### 测试环境
-
-微信支付提供沙箱环境，用于测试支付功能：
-
-1. **沙箱环境地址**：`https://api.mch.weixin.qq.com/sandboxnew/pay/unifiedorder`
-2. **沙箱密钥**：需要通过接口获取，具体参考微信支付文档
-
-在测试环境中，您可以使用测试账号进行支付测试，无需真实资金交易。
+签名生成步骤：
+1. 构造签名串（按照上述格式）
+2. 使用商户API私钥对签名串进行SHA256withRSA签名
+3. 对签名结果进行Base64编码

@@ -19,6 +19,7 @@
 - 2026-03-25：新增实体模块接口（用户制作历史）
 - 2026-03-25：更新生成图片接口（增加分享到社区参数）
 - 2026-03-27：新增图片模块接口（获取用户分享的创意图片）
+- 2026-03-28：更新订单模块「生成订单二维码」接口（整合微信 Native 下单，返回真实 code_url）
 
 ## 用户模块
 
@@ -658,6 +659,13 @@
 |-------|------|------|------|
 | category_id | int | 是 | 实体分类ID |
 
+**说明**（由后端自动处理，前端无需传）：
+
+- 调用微信支付 Native 下单，金额取实体分类 `price`；
+- `description`：由后端生成，格式为 `爱制-{分类名称}`；
+- 支付单有效时间：默认 **10 分钟**（对应微信 `time_expire`）；
+- 微信 `attach` 内为 JSON：`order_type` 固定为 `wx`，`extra` 为业务侧 `order_no`（商户订单号）。
+
 **返回示例**：
 
 ```json
@@ -669,7 +677,10 @@
     "order_id": 1,
     "order_no": "AM2026032412304599",
     "payment_method": "WX",
-    "qr_code_url": "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=WeChatPay_Fake_Link"
+    "qr_code_url": "weixin://wxpay/bizpayurl?pr=xxxxxx",
+    "amount": 59.9,
+    "description": "爱制-示例实体分类",
+    "expire_time": "2026-03-28 12:40:00"
   }
 }
 
@@ -1100,4 +1111,213 @@
 }
 
 // 失败（无数据时一般仍返回 200，data 为 []）
+
+
 ```
+
+## 支付模块
+
+> **说明**：业务侧「实体分类购买」已整合到订单模块接口 `POST /order/create-pay-qrcode`（见上文「订单模块 → 生成订单二维码」），由后端自动填充商品描述、过期时间、`attach` 等，前端只需传 `category_id`。本节为通用 Native 下单 Demo，便于单独联调微信支付。
+
+#### 1. 创建Native支付订单
+
+**请求地址**：`/pay/create-native-order`  
+**请求方式**：POST  
+**是否需要token**：是
+
+**请求参数**：
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| amount | float | 是 | 支付金额（元） |
+| description | string | 是 | 商品描述 |
+| expire_minutes | int | 否 | 订单过期时间（分钟），默认30分钟 |
+| order_type | string | 否 | 订单类型 |
+| extra | object | 否 | 额外参数 |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "message": "订单创建成功",
+  "data": {
+    "order_no": "2024032812000012345678",
+    "code_url": "weixin://wxpay/bizpayurl?pr=xxxxxx",
+    "amount": 100.00,
+    "description": "商品描述",
+    "expire_time": "2024-03-28 12:30:00"
+  }
+}
+```
+
+#### 2. 查询订单状态
+
+**请求地址**：`/pay/query-order`  
+**请求方式**：POST  
+**是否需要token**：是
+
+**请求参数**：
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| order_no | string | 是 | 商户订单号 |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "message": "查询成功",
+  "data": {
+    "order_no": "2024032812000012345678",
+    "status": "paid",
+    "trade_state_desc": "支付成功",
+    "amount": 100.00,
+    "payer": {
+      "openid": "oUpF8uMuAJO_M2pxb1Q9zNjWeS6o"
+    }
+  }
+}
+```
+
+#### 3. 关闭订单
+
+**请求地址**：`/pay/close-order`  
+**请求方式**：POST  
+**是否需要token**：是
+
+**请求参数**：
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| order_no | string | 是 | 商户订单号 |
+
+#### 4. 申请退款
+
+**请求地址**：`/pay/refund`  
+**请求方式**：POST  
+**是否需要token**：是
+
+**请求参数**：
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| order_no | string | 是 | 商户订单号 |
+| refund_amount | float | 是 | 退款金额（元） |
+| reason | string | 否 | 退款原因 |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "message": "退款申请已提交",
+  "data": {
+    "out_refund_no": "REF2024032812000012345678",
+    "refund_id": "50300807092023111505682300045",
+    "status": "PROCESSING"
+  }
+}
+```
+
+#### 5. 支付回调通知
+
+**请求地址**：`/pay/notify`  
+**请求方式**：POST  
+**是否需要token**：否（微信服务器直接调用）
+
+微信支付成功后，微信服务器会主动调用此接口通知支付结果。
+
+**回调处理流程**：
+1. 接收微信回调请求
+2. 验证签名（确保请求来自微信）
+3. 解密回调数据
+4. 更新订单状态
+5. 执行业务逻辑（如增加用户权益）
+6. 返回成功响应
+
+### 使用示例
+
+#### 在控制器中使用
+
+```php
+<?php
+namespace app\controller;
+
+use app\BaseController;
+use app\service\WechatPayService;
+
+class OrderController extends BaseController
+{
+    protected $wechatPayService;
+    
+    public function __construct()
+    {
+        parent::__construct();
+        $this->wechatPayService = new WechatPayService();
+    }
+    
+    /**
+     * 创建支付订单
+     */
+    public function createOrder()
+    {
+        try {
+            // 创建支付订单
+            $result = $this->wechatPayService->nativePay(
+                'ORDER20240328001',           // 商户订单号
+                100,                          // 金额（分）
+                '测试商品',                    // 商品描述
+                [
+                    'attach' => json_encode(['user_id' => 1]),
+                    'time_expire' => date('c', strtotime('+30 minutes'))
+                ]
+            );
+            
+            // 返回二维码链接
+            return $this->success([
+                'code_url' => $result['code_url']
+            ]);
+            
+        } catch (\Exception $e) {
+            return $this->error('创建订单失败：' . $e->getMessage());
+        }
+    }
+}
+```
+
+#### 前端扫码支付流程
+
+1. 调用 `/pay/create-native-order` 创建订单
+2. 获取返回的 `code_url`（二维码链接）
+3. 使用二维码生成库将 `code_url` 转换为二维码图片
+4. 用户微信扫码支付
+5. 前端轮询调用 `/pay/query-order` 查询支付状态
+6. 支付成功后跳转成功页面
+
+### 安全注意事项
+
+1. **APIv3密钥**：妥善保管，不要泄露，定期更换
+2. **商户证书**：私钥文件（apiclient_key.pem）必须安全存储
+3. **回调验证**：务必验证微信回调的签名，防止伪造请求
+4. **订单幂等性**：处理回调时注意订单幂等性，避免重复处理
+5. **HTTPS**：生产环境必须使用HTTPS
+
+### 常见问题
+
+#### 1. 签名验证失败
+
+- 检查APIv3密钥是否正确
+- 检查商户证书路径是否正确
+- 检查证书文件是否有读取权限
+
+#### 2. 回调通知未收到
+
+- 检查 `WECHAT_PAY_NOTIFY_URL` 是否可外网访问
+- 确保回调地址使用HTTPS
+- 检查服务器防火墙设置
+
+#### 3. 证书问题
+
+- 确保证书未过期
+- 确保证书与商户号匹配
+- 检查证书文件编码（应为UTF-8）
+

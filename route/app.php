@@ -67,15 +67,22 @@ Route::group('image', function () {
 // 图片相关公开路由（不需要 token）
 Route::post('image/shared-creatives', 'Image/sharedCreativeImages');
 
+// 微信支付路由
+Route::group('pay', function () {
+    // 创建Native支付订单
+    Route::post('create-native-order', 'Pay/createNativeOrder');
+    // 查询订单状态
+    Route::post('query-order', 'Pay/queryOrder');
+    // 关闭订单
+    Route::post('close-order', 'Pay/closeOrder');
+    // 申请退款
+    Route::post('refund', 'Pay/refund');
+})->middleware('auth');
+
+// 微信支付回调路由（不需要token，微信服务器直接调用）
+Route::post('pay/notify', 'Pay/notify');
+
 // 支付回调路由（第三方回调）
 Route::group('order', function () {
     Route::post('pay-callback', 'Order/payCallback');
-});
-
-// 微信支付相关路由
-Route::group('pay', function () {
-    // 生成微信支付二维码
-    Route::post('create-qr-code', 'Pay/createQrCode');
-    // 微信支付回调
-    Route::post('notify', 'Pay/notify');
 });

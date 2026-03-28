@@ -5,12 +5,17 @@ namespace app\controller;
 
 use app\BaseController;
 use app\enums\OrderStatusEnum;
+use app\service\WechatPayService;
+use app\support\WechatPayCallbackTestSample;
 use think\facade\Db;
 
 class Order extends BaseController
 {
+    /** Native 下单：支付单有效时间（分钟），由后端固定，前端不传 */
+    private const NATIVE_PAY_EXPIRE_MINUTES = 10;
+
     /**
-     * 生成订单二维码（测试）
+     * 生成订单二维码（微信 Native：返回真实 code_url）
      * @return \think\Response
      */
     public function createPayQrCode()
@@ -62,6 +67,21 @@ class Order extends BaseController
         }
 
         $orderNo = $this->generateOrderNo();
+        $description = '爱制-' . (string)($category['name'] ?? '实体权益');
+        $amountFen = (int)round(((float)$category['price']) * 100);
+        if ($amountFen <= 0) {
+            return $this->error('订单金额无效');
+        }
+
+        $expireMinutes = self::NATIVE_PAY_EXPIRE_MINUTES;
+        $expireTime = date('Y-m-d H:i:s', strtotime("+{$expireMinutes} minutes"));
+        $timeExpireRfc3339 = date('c', strtotime("+{$expireMinutes} minutes"));
+
+        $attach = json_encode([
+            'order_type' => 'wx',
+            'extra' => $orderNo,
+        ], JSON_UNESCAPED_UNICODE);
+
         Db::startTrans();
         try {
             $orderId = Db::name('entity_order')->insertGetId([
@@ -75,18 +95,38 @@ class Order extends BaseController
                 'status' => 1
             ]);
 
+            $wechatPay = new WechatPayService();
+            $wxResult = $wechatPay->nativePay(
+                $orderNo,
+                $amountFen,
+                $description,
+                [
+                    'attach' => $attach,
+                    'time_expire' => $timeExpireRfc3339,
+                ]
+            );
+
+            $codeUrl = (string)($wxResult['code_url'] ?? '');
+            if ($codeUrl === '') {
+                throw new \RuntimeException('微信下单未返回二维码链接');
+            }
+
             Db::commit();
 
-            $this->writeLog('order_create_qr', '用户生成订单二维码', $userId);
+            $this->writeLog('order_create_qr', '用户生成微信支付二维码，订单号：' . $orderNo, $userId);
 
             return $this->success([
                 'order_id' => $orderId,
                 'order_no' => $orderNo,
                 'payment_method' => 'WX',
-                'qr_code_url' => 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=WeChatPay_Fake_Link'
+                'qr_code_url' => $codeUrl,
+                'amount' => (float)$category['price'],
+                'description' => $description,
+                'expire_time' => $expireTime,
             ], '订单二维码生成成功');
         } catch (\Throwable $e) {
             Db::rollback();
+            $this->writeLog('order_create_qr', '生成微信支付二维码失败：' . $e->getMessage(), $userId, 3);
             return $this->error('订单创建失败，请稍后重试');
         }
     }
@@ -173,53 +213,111 @@ class Order extends BaseController
     }
 
     /**
-     * 支付回调（当前使用伪造回调数据）
+     * 微信支付回调（APIv3：验签 + 解密 resource，与 createPayQrCode 下单参数一致）
+     * 下单 attach：{"order_type":"wx","extra":"<order_no>"}，回调用 out_trade_no / attach 与本地订单对齐。
+     *
      * @return \think\Response
      */
-    public function payCallback() 
+    public function payCallback()
     {
-        // 目前没有第三方平台回调，先伪造一份回调数据
-        $callbackData = [
-            'order_no' => (string)$this->request->post('order_no', ''),
-            'payment_transaction_id' => (string)$this->request->post('payment_transaction_id', ''),
-            'payment_method' => (string)$this->request->post('payment_method', 'WX'),
-            'amount' => (string)$this->request->post('amount', '59.9'),
-            'payment_status' => (int)$this->request->post('payment_status', 1),
-            'payment_time' => (string)$this->request->post('payment_time', date('Y-m-d H:i:s'))
-        ];
-
-        if ($callbackData['order_no'] === '' || $callbackData['amount'] === '') {
-            return $this->error('回调参数不完整');
+        $useCallbackSample = filter_var(env('WECHAT_PAY_CALLBACK_TEST', false), FILTER_VALIDATE_BOOLEAN);
+        if ($useCallbackSample) {
+            $headers = WechatPayCallbackTestSample::headers();
+            $rawBody = WechatPayCallbackTestSample::body();
+        } else {
+            $rawBody = $this->request->getContent();
+            if ($rawBody === '') {
+                $rawBody = (string)$this->request->getInput();
+            }
+            $headers = (array)$this->request->header();
         }
 
-        // if ($callbackData['payment_status'] !== 1) {
-        //     return $this->error('当前仅支持支付成功回调');
-        // }
-
-        $order = Db::name('entity_order')
-            ->where('order_no', $callbackData['order_no'])
-            ->where('status', 1)
-            ->whereNull('deleted_at')
-            ->find();
-        if (!$order) {
-            return $this->error('订单不存在');
+        try {
+            $wechatPay = new WechatPayService();
+            
+            // 解析请求体获取resource数据
+            $data = json_decode($rawBody, true);
+            if (empty($data['resource'])) {
+                throw new \Exception('回调数据格式错误，缺少resource字段');
+            }
+            
+            // 调用解密方法
+            $notifyData = $wechatPay->decryptNotify($data['resource']);
+            
+            // 验证解密结果
+            if (empty($notifyData)) {
+                throw new \Exception('解密结果为空');
+            }
+            
+        } catch (\Throwable $e) {
+            $this->writeLog('payment_callback', '微信回调验签/解密失败：' . $e->getMessage(), null, 3);
+            return json(['code' => 'FAIL', 'message' => '验签或解密失败']);
         }
 
-        // 幂等：订单已支付时，避免重复记账
-        if ((int)$order['payment_status'] === 1) {
-            return $this->success([
-                'order_no' => $callbackData['order_no']
-            ], '订单已处理');
+        if (($notifyData['trade_state'] ?? '') !== 'SUCCESS') {
+            return json(['code' => 'SUCCESS', 'message' => '成功']);
         }
 
-        $orderAmount = number_format((float)$order['total_amount'], 2, '.', '');
-        $callbackAmount = number_format((float)$callbackData['amount'], 2, '.', '');
-        if ($orderAmount !== $callbackAmount) {
-            return $this->error('回调金额与订单金额不一致');
+        $outTradeNo = (string)($notifyData['out_trade_no'] ?? '');
+        $transactionId = (string)($notifyData['transaction_id'] ?? '');
+        $amountFen = (int)($notifyData['amount']['total'] ?? 0);
+        $successTimeRaw = (string)($notifyData['success_time'] ?? '');
+        $attachRaw = (string)($notifyData['attach'] ?? '');
+
+        if ($outTradeNo === '' || $transactionId === '' || $amountFen <= 0) {
+            return json(['code' => 'FAIL', 'message' => '回调参数不完整']);
         }
+
+        // 与下单时 attach 一致：order_type=wx，extra 为业务 order_no（等于 out_trade_no）
+        if ($attachRaw !== '') {
+            $attachData = json_decode($attachRaw, true);
+            if (is_array($attachData)) {
+                if (($attachData['order_type'] ?? '') !== 'wx') {
+                    return json(['code' => 'FAIL', 'message' => 'attach 不匹配']);
+                }
+                if ((string)($attachData['extra'] ?? '') !== $outTradeNo) {
+                    return json(['code' => 'FAIL', 'message' => 'attach.extra 与订单号不一致']);
+                }
+            }
+        }
+
+        $paymentTime = $successTimeRaw !== ''
+            ? date('Y-m-d H:i:s', strtotime($successTimeRaw))
+            : date('Y-m-d H:i:s');
+        $callbackAmountYuan = number_format($amountFen / 100, 2, '.', '');
 
         Db::startTrans();
+        $order = null;
         try {
+            $order = Db::name('entity_order')
+                ->where('order_no', $outTradeNo)
+                ->where('status', 1)
+                ->whereNull('deleted_at')
+                ->lock(true)
+                ->find();
+            if (!$order) {
+                Db::rollback();
+                return json(['code' => 'FAIL', 'message' => '订单不存在']);
+            }
+
+            // 幂等：未改库，rollback 释放行锁即可
+            if ((int)$order['payment_status'] === 1) {
+                Db::rollback();
+                return json(['code' => 'SUCCESS', 'message' => '成功']);
+            }
+
+            $orderAmountFen = (int)round(((float)$order['total_amount']) * 100);
+            if ($orderAmountFen !== $amountFen) {
+                Db::rollback();
+                $this->writeLog(
+                    'payment_callback',
+                    '回调金额与订单不一致，order_no=' . $outTradeNo . ' local_fen=' . $orderAmountFen . ' wx_fen=' . $amountFen,
+                    (int)$order['user_id'],
+                    3
+                );
+                return json(['code' => 'FAIL', 'message' => '金额不一致']);
+            }
+
             $category = Db::name('entity_category')
                 ->where('id', (int)$order['category_id'])
                 ->where('status', 1)
@@ -232,14 +330,14 @@ class Order extends BaseController
             Db::name('entity_order')
                 ->where('id', (int)$order['id'])
                 ->update([
-                    'payment_status' => 1
+                    'payment_status' => 1,
                 ]);
 
             Db::name('order_status')->insert([
                 'order_id' => (int)$order['id'],
                 'user_id' => (int)$order['user_id'],
                 'status' => 0,
-                'remark' => '支付完成，订单进入待使用流程'
+                'remark' => '支付完成，订单进入待使用流程',
             ]);
 
             $expireTime = date('Y-m-d H:i:s', strtotime('+' . (int)$category['validity_period'] . ' days'));
@@ -249,46 +347,43 @@ class Order extends BaseController
                 'order_id' => (int)$order['id'],
                 'expire_time' => $expireTime,
                 'remaining_renders' => (int)$category['render_count'],
-                'status' => 1
+                'status' => 1,
             ]);
 
             Db::name('payment')->insert([
                 'order_id' => (int)$order['id'],
                 'user_purchased_entity_id' => $userPurchasedEntityId,
-                'amount' => $callbackAmount,
-                'payment_method' => $callbackData['payment_method'],
-                'payment_transaction_id' => $callbackData['payment_transaction_id'],
+                'amount' => $callbackAmountYuan,
+                'payment_method' => 'WX',
+                'payment_transaction_id' => $transactionId,
                 'payment_status' => 1,
-                'payment_time' => $callbackData['payment_time'],
+                'payment_time' => $paymentTime,
                 'refund_status' => 0,
-                'status' => 1
+                'status' => 1,
             ]);
 
             Db::name('log')->insert([
                 'user_id' => (int)$order['user_id'],
                 'operation_type' => 'payment_callback',
                 'operation_ip' => $this->request->ip(),
-                'user_agent' => $this->request->header('user-agent', ''),
-                'operation_content' => '支付回调处理成功，订单号：' . $callbackData['order_no'],
+                'user_agent' => (string)$this->request->header('user-agent', ''),
+                'operation_content' => '微信支付回调成功，订单号：' . $outTradeNo . '，微信单号：' . $transactionId,
                 'log_level' => 1,
-                'status' => 1
+                'status' => 1,
             ]);
 
             Db::commit();
 
-            return $this->success([
-                'order_no' => $callbackData['order_no'],
-                'payment_status' => $callbackData['payment_status']
-            ], '支付回调处理成功');
+            return json(['code' => 'SUCCESS', 'message' => '成功']);
         } catch (\Throwable $e) {
             Db::rollback();
             $this->writeLog(
                 'payment_callback',
-                '支付回调处理失败，订单号：' . $callbackData['order_no'] . '，错误：' . $e->getMessage(),
-                (int)$order['user_id'],
+                '支付回调处理失败，订单号：' . $outTradeNo . '，错误：' . $e->getMessage(),
+                is_array($order) ? (int)($order['user_id'] ?? 0) : null,
                 3
             );
-            return $this->error('支付回调处理失败，请稍后重试');
+            return json(['code' => 'FAIL', 'message' => '处理失败']);
         }
     }
 

@@ -34,7 +34,7 @@ class Image extends BaseController
         $aspectRatio = (string)$this->request->post('aspect_ratio', '3:4');
         // 生成参数固定：与需求保持一致
         $imageSize = '2K';
-        $model = 'nano-banana-fast';
+        $model = 'nano-banana-2';
         $shotProgress = false;
 
         $availableOrder = Db::name('entity_order')

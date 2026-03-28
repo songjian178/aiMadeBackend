@@ -67,6 +67,12 @@ Route::group('image', function () {
 // 图片相关公开路由（不需要 token）
 Route::post('image/shared-creatives', 'Image/sharedCreativeImages');
 
+// 创意社区（需登录）
+Route::group('community', function () {
+    Route::post('favorite', 'Community/favorite');
+    Route::get('favorite-list', 'Community/favoriteList');
+})->middleware('auth');
+
 // 微信支付路由
 Route::group('pay', function () {
     // 创建Native支付订单

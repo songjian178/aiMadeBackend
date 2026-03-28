@@ -124,7 +124,7 @@
 | user_id | int | 11 | NOT NULL | 用户ID（外键：aimade_user.id） |
 | title | varchar | 100 | NOT NULL | 标题 |
 | description | text | - | NULL | 描述 |
-| likes_count | int | 11 | DEFAULT 0 | 点赞数 |
+| likes_count | int | 11 | DEFAULT 0 | 收藏数 |
 | views_count | int | 11 | DEFAULT 0 | 浏览数 |
 | is_public | tinyint | 1 | DEFAULT 1 | 是否公开（1：公开，0：私有） |
 | status | tinyint | 1 | DEFAULT 1 | 状态（1：有效，0：无效） |
@@ -138,6 +138,24 @@
 - KEY (user_id)
 - KEY (likes_count)
 - KEY (views_count)
+
+### 6.1 用户创意社区收藏表 (aimade_user_creative_favorite)
+
+| 字段名 | 数据类型 | 长度 | 约束 | 描述 |
+|-------|---------|------|------|------|
+| id | int | 11 | PRIMARY KEY, AUTO_INCREMENT | 收藏记录ID |
+| user_id | int | 11 | NOT NULL | 用户ID（外键：aimade_user.id） |
+| creative_community_id | int | 11 | NOT NULL | 创意社区收录ID（外键：aimade_creative_community.id） |
+| status | tinyint | 1 | DEFAULT 1 | 状态（1：有效，0：无效） |
+| created_at | datetime | - | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
+| updated_at | datetime | - | DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间 |
+| deleted_at | datetime | - | NULL | 软删除时间 |
+
+**索引**：
+- PRIMARY KEY (id)
+- KEY (user_id)
+- KEY (creative_community_id)
+- UNIQUE KEY (user_id, creative_community_id) | 同一用户对同一条社区收录仅保留一条收藏记录 |
 
 ### 7. 用户已购买实体表 (aimade_user_purchased_entity)
 
@@ -331,6 +349,7 @@
 - `aimade_user` ↔ `aimade_order_status`：一对多（一个用户可以有多个订单状态记录）
 - `aimade_user` ↔ `aimade_invitation_activity`：一对多（一个用户可以邀请多个用户）
 - `aimade_user` ↔ `aimade_log`：一对多（一个用户可以有多个操作日志）
+- `aimade_user` ↔ `aimade_user_creative_favorite`：一对多（一个用户可收藏多条社区收录）
 
 ### 2. 订单相关
 - `aimade_entity_order` ↔ `aimade_order_corpus`：一对多（一个订单可以有多个语料）
@@ -342,6 +361,7 @@
 ### 3. 图片相关
 - `aimade_order_corpus` ↔ `aimade_generated_image`：一对多（一个语料可以生成多个图片）
 - `aimade_generated_image` ↔ `aimade_creative_community`：一对一（一个创意社区收录对应一个生成图片）
+- `aimade_creative_community` ↔ `aimade_user_creative_favorite`：一对多（一条社区收录可被多个用户收藏）
 
 ### 4. 分类相关
 - `aimade_entity_category` ↔ `aimade_entity_order`：一对多（一个分类可以有多个订单）
@@ -549,6 +569,24 @@ CREATE TABLE `aimade_creative_community` (
   KEY `likes_count` (`likes_count`),
   KEY `views_count` (`views_count`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='创意社区收录表';
+```
+
+### 6.1 用户创意社区收藏表 (aimade_user_creative_favorite)
+
+```sql
+CREATE TABLE `aimade_user_creative_favorite` (
+  `id` int(11) NOT NULL AUTO_INCREMENT COMMENT '收藏记录ID',
+  `user_id` int(11) NOT NULL COMMENT '用户ID',
+  `creative_community_id` int(11) NOT NULL COMMENT '创意社区收录ID',
+  `status` tinyint(1) DEFAULT '1' COMMENT '状态（1：有效，0：无效）',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted_at` datetime DEFAULT NULL COMMENT '软删除时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `user_community` (`user_id`,`creative_community_id`),
+  KEY `user_id` (`user_id`),
+  KEY `creative_community_id` (`creative_community_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户创意社区收藏表';
 ```
 
 ### 7. 用户已购买实体表 (aimade_user_purchased_entity)

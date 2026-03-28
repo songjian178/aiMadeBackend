@@ -20,6 +20,7 @@
 - 2026-03-25：更新生成图片接口（增加分享到社区参数）
 - 2026-03-27：新增图片模块接口（获取用户分享的创意图片）
 - 2026-03-28：更新订单模块「生成订单二维码」接口（整合微信 Native 下单，返回真实 code_url）
+- 2026-03-28：新增创意社区模块接口（收藏社区图片、获取我的收藏列表）
 
 ## 用户模块
 
@@ -1113,6 +1114,134 @@
 // 失败（无数据时一般仍返回 200，data 为 []）
 
 
+```
+
+## 创意社区模块
+
+> **数据表**：`aimade_user_creative_favorite`（用户收藏）、关联 `aimade_creative_community` 与 `aimade_generated_image`。  
+> **说明**：`aimade_generated_image` 表无 `description` 字段，列表中的 `description` 取自 `aimade_creative_community.description`（收录描述）。
+
+### 1. 收藏社区图片
+
+**请求地址**：`/community/favorite`  
+**请求方式**：POST  
+**是否需要 token**：是  
+**请求头**：
+- Authorization: Bearer {token}
+
+**请求参数**：
+
+| 参数名 | 类型 | 必填 | 描述 |
+|-------|------|------|------|
+| creative_community_id | int | 是 | 创意社区收录记录 ID（`aimade_creative_community.id`） |
+
+**业务说明**：
+- 仅允许收藏 `status=1`、`is_public=1` 且未软删的收录；关联生成图需有效。
+- 同一用户对同一条收录仅一条有效收藏；已收藏时返回「已收藏」且不重复增加收录表的 `likes_count`。
+- 首次收藏或从软删状态恢复收藏时，`aimade_creative_community.likes_count` 加 1。
+
+**返回示例**：
+
+```json
+// 成功
+{
+  "code": 200,
+  "message": "收藏成功",
+  "data": {
+    "id": 1
+  }
+}
+
+// 已收藏（幂等）
+{
+  "code": 200,
+  "message": "已收藏",
+  "data": {
+    "id": 1
+  }
+}
+
+// 失败
+{
+  "code": 401,
+  "message": "请先登录",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "参数不完整",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "社区收录不存在或不可收藏",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "关联图片不存在或不可用",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "收藏失败，请稍后重试",
+  "data": null
+}
+```
+
+### 2. 获取用户收藏的社区图片
+
+**请求地址**：`/community/favorite-list`  
+**请求方式**：GET  
+**是否需要 token**：是  
+**请求头**：
+- Authorization: Bearer {token}
+
+**请求参数**：
+
+| 参数名 | 类型 | 必填 | 描述 |
+|-------|------|------|------|
+| page | int | 否 | 页码，默认 1 |
+| per_page | int | 否 | 每页条数，默认 10，最大 50 |
+
+**返回字段说明**（每条）：
+- `image_url` / `render_url`：来自 `aimade_generated_image`
+- `description`：来自 `aimade_creative_community.description`（收录描述）
+
+**返回示例**：
+
+```json
+// 成功
+{
+  "code": 200,
+  "message": "获取收藏列表成功",
+  "data": {
+    "list": [
+      {
+        "favorite_id": 1,
+        "creative_community_id": 2,
+        "image_id": 10,
+        "image_url": "https://example.com/image.png",
+        "render_url": "https://example.com/render.png",
+        "description": "收录描述文案"
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "per_page": 10
+  }
+}
+
+// 失败
+{
+  "code": 401,
+  "message": "请先登录",
+  "data": null
+}
 ```
 
 ## 支付模块

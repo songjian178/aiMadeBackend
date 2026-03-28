@@ -220,23 +220,13 @@ class Order extends BaseController
      */
     public function payCallback()
     {
-        $useCallbackSample = filter_var(env('WECHAT_PAY_CALLBACK_TEST', false), FILTER_VALIDATE_BOOLEAN);
-        if ($useCallbackSample) {
-            $headers = WechatPayCallbackTestSample::headers();
-            $rawBody = WechatPayCallbackTestSample::body();
-        } else {
-            $rawBody = $this->request->getContent();
-            if ($rawBody === '') {
-                $rawBody = (string)$this->request->getInput();
-            }
-            $headers = (array)$this->request->header();
-        }
+        $rawBody = $this->request->post();
 
         try {
             $wechatPay = new WechatPayService();
             
             // 解析请求体获取resource数据
-            $data = json_decode($rawBody, true);
+            $data = $rawBody;
             if (empty($data['resource'])) {
                 throw new \Exception('回调数据格式错误，缺少resource字段');
             }

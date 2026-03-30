@@ -6,6 +6,7 @@ namespace app\controller;
 use app\BaseController;
 use app\enums\OrderStatusEnum;
 use app\service\NanoBananaService;
+use app\service\PromptContentChecker;
 use think\facade\Db;
 
 class Image extends BaseController
@@ -31,10 +32,15 @@ class Image extends BaseController
             return $this->error('参数不完整');
         }
 
+        $promptBlocked = PromptContentChecker::validatePrompt($prompt);
+        if ($promptBlocked !== null) {
+            return $this->error($promptBlocked);
+        }
+
         $aspectRatio = (string)$this->request->post('aspect_ratio', '3:4');
         // 生成参数固定：与需求保持一致
         $imageSize = '2K';
-        $model = 'nano-banana-2';
+        $model = 'nano-banana-fast';
         $shotProgress = false;
 
         $availableOrder = Db::name('entity_order')

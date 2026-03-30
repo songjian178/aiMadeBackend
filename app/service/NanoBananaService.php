@@ -39,7 +39,8 @@ class NanoBananaService
         string $aspectRatio = '3:4',
         string $imageSize = '2K',
         string $model = 'nano-banana',
-        bool $shotProgress = false
+        bool $shotProgress = false,
+        array $urls = []
     ): array {
 
         $data = [
@@ -48,7 +49,8 @@ class NanoBananaService
             'aspectRatio' => $aspectRatio,
             'imageSize' => $imageSize,
             'shotProgress' => $shotProgress,
-            'webHook' => "-1"
+            'webHook' => "-1",
+            'urls' => $urls
         ];
         return $this->httpClient->post('/v1/draw/nano-banana', $data);
     }

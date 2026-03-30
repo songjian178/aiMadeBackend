@@ -769,6 +769,29 @@ CREATE TABLE `aimade_log` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='日志表';
 ```
 
+### 15. 实体渲染配置表 (aimade_entity_render_config)
+
+该表用于为每个“实体分类（aimade_entity_category.id）”配置：
+- 实体图片：被渲染的物体图片 URL（例如：T 恤/杯子/海报模板等）
+- 固定渲染 prompt：将用户设计内容渲染到实体图片上的固定提示词模板
+
+```sql
+CREATE TABLE `aimade_entity_render_config` (
+  `id` int(11) NOT NULL AUTO_INCREMENT COMMENT '配置ID',
+  `category_id` int(11) NOT NULL COMMENT '实体分类ID（外键：aimade_entity_category.id）',
+  `entity_image_url` varchar(255) NOT NULL COMMENT '实体图片URL（被渲染物体）',
+  `fixed_render_prompt` text NOT NULL COMMENT '固定渲染 prompt（用于渲染实体图片）',
+  `parameters` json DEFAULT NULL COMMENT '渲染固定参数（JSON格式，可扩充）',
+  `status` tinyint(1) DEFAULT '1' COMMENT '状态（1：有效，0：无效）',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted_at` datetime DEFAULT NULL COMMENT '软删除时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `category_id_unique` (`category_id`),
+  KEY `status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='实体渲染配置表';
+```
+
 ### 创建数据库
 
 ```sql

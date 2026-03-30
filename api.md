@@ -21,6 +21,7 @@
 - 2026-03-27：新增图片模块接口（获取用户分享的创意图片）
 - 2026-03-28：更新订单模块「生成订单二维码」接口（整合微信 Native 下单，返回真实 code_url）
 - 2026-03-28：新增创意社区模块接口（收藏社区图片、获取我的收藏列表）
+- 2026-03-30：新增图片模块接口（生成最终实体渲染图）
 - 2026-03-29：更新生成图片接口（prompt 敏感内容校验）
 
 ## 用户模块
@@ -1037,6 +1038,48 @@
 {
   "code": 400,
   "message": "图片任务不存在",
+  "data": null
+}
+```
+
+### 6.5. 生成最终实体渲染图
+
+**请求地址**：`/image/generate-render-image`
+**请求方式**：POST
+**是否需要 token**：是
+**请求头**：
+- Authorization: Bearer {token}
+
+**请求参数**：
+
+| 参数名 | 类型 | 必填 | 描述 |
+|-------|------|------|------|
+| image_id | int | 是 | `aimade_generated_image.id`（原始设计图生成记录ID） |
+
+**说明**：
+- 先根据 `image_id` 找到原始生成图的 `image_url` 与关联的 `category_id`；
+- 再从 `aimade_entity_render_config` 读取渲染所需：
+  - `entity_image_url` 作为 `urls[0]`
+  - `fixed_render_prompt` 作为 Nano-Banana 的 `prompt`
+- 调用 Nano-Banana 生成最终实体渲染图，并在 `aimade_generated_image.render_query_id` 写入第三方返回的任务 ID；
+- 调用方拿到 `render_query_id` 后，使用 `/image/get-image-result` 轮询（传 `render_query_id`）获取 `render_url`。
+
+**返回示例**：
+
+```json
+// 成功（任务创建成功）
+{
+  "code": 200,
+  "message": "实体渲染任务创建成功",
+  "data": {
+    "render_query_id": "67d3f3b4f7a123456789abcd"
+  }
+}
+
+// 失败
+{
+  "code": 400,
+  "message": "参数不完整",
   "data": null
 }
 ```

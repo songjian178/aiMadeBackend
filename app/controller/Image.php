@@ -182,6 +182,117 @@ class Image extends BaseController
     }
 
     /**
+     * 生成最终实体渲染图（通过已有的 aimade_generated_image.id 获取实体渲染参数）
+     * @return \think\Response
+     */
+    public function generateRenderImage()
+    {
+        $userId = $this->getCurrentUserId();
+        $generatedImageId = (int)$this->request->post('image_id', (int)$this->request->post('id', 0));
+
+        if ($generatedImageId <= 0) {
+            return $this->error('参数不完整');
+        }
+
+        // 读取原图生成记录：用于拿到 image_url 以及关联的实体分类 category_id
+        $generated = Db::name('generated_image')->alias('gi')
+            ->join('order_corpus oc', 'oc.id = gi.corpus_id')
+            ->join('entity_order o', 'o.id = oc.order_id')
+            ->field('gi.id,gi.image_url,gi.render_query_id,gi.render_url,o.id as order_id,o.user_id,o.category_id')
+            ->where('o.user_id', $userId)
+            ->where('gi.id', $generatedImageId)
+            ->where('gi.status', 1)
+            ->whereNull('gi.deleted_at')
+            ->whereNull('oc.deleted_at')
+            ->whereNull('o.deleted_at')
+            ->find();
+
+        if (!$generated) {
+            return $this->error('图片任务不存在');
+        }
+
+        $originalImageUrl = (string)($generated['image_url'] ?? '');
+        if ($originalImageUrl === '') {
+            return $this->error('原始图片尚未生成完成');
+        }
+
+        // 如果渲染结果已存在，则直接返回当前 render_query_id 供轮询
+        if (!empty($generated['render_url'])) {
+            return $this->success([
+                'render_query_id' => (string)($generated['render_query_id'] ?? ''),
+            ], '已存在渲染结果');
+        }
+
+        $config = Db::name('entity_render_config')
+            ->where('category_id', (int)($generated['category_id'] ?? 0))
+            ->where('status', 1)
+            ->whereNull('deleted_at')
+            ->find();
+
+        if (!$config) {
+            return $this->error('当前实体缺少渲染配置');
+        }
+
+        $entityImageUrl = (string)($config['entity_image_url'] ?? '');
+        $fixedPrompt = (string)($config['fixed_render_prompt'] ?? '');
+
+        if ($entityImageUrl === '' || $fixedPrompt === '') {
+            return $this->error('渲染配置不完整');
+        }
+
+        // Nano-Banana 渲染入参：urls[0]=实体图片（被渲染物体），urls[1]=用户设计图片
+        $urls = [$entityImageUrl, $originalImageUrl];
+
+        $aspectRatio = '3:4'; // 默认
+        $imageSize = '2K'; // 默认
+        $model = 'nano-banana-fast';
+        $shotProgress = false;
+
+        try {
+            $result = $this->nanoBananaService->generateImage(
+                $fixedPrompt,
+                $aspectRatio,
+                $imageSize,
+                $model,
+                $shotProgress,
+                $urls
+            );
+        } catch (\Throwable $e) {
+            $this->writeLog('generate_render_image', '调用生成渲染图服务失败：' . $e->getMessage(), $userId, 3);
+            return $this->error('生成渲染图请求失败，请稍后重试');
+        }
+
+        $renderQueryId = (string)($result['data']['id'] ?? '');
+        if ($renderQueryId === '') {
+            return $this->error('生成渲染图请求失败，请稍后重试');
+        }
+
+        Db::startTrans();
+        try {
+            // 写入渲染任务 id，并清空旧渲染 url
+            Db::name('generated_image')
+                ->where('id', (int)$generated['id'])
+                ->update([
+                    'render_query_id' => $renderQueryId,
+                    'render_url' => null,
+                    'status' => 1,
+                ]);
+
+            Db::commit();
+        } catch (\Throwable $e) {
+            Db::rollback();
+            $this->writeLog('generate_render_image', '渲染图落库失败：' . $e->getMessage(), $userId, 3);
+            return $this->error('生成渲染任务创建失败，请稍后重试');
+        }
+
+        $this->writeLog('generate_render_image', '用户发起生成渲染图成功', $userId);
+
+        return $this->success([
+            'render_query_id' => $renderQueryId,
+        ], '实体渲染任务创建成功');
+    }
+
+    /**
      * 获取图片生成结果
      * @return \think\Response
      */
@@ -226,10 +337,7 @@ class Image extends BaseController
         $cachedUrl = '';
         if ($renderQueryId !== '') {
             $cachedUrl = (string)($generated['render_url'] ?? '');
-            if ($cachedUrl === '') {
-                // fallback：如果 render_url 为空但 image_url 已有值，也直接返回
-                $cachedUrl = (string)($generated['image_url'] ?? '');
-            }
+            // render 轮询仅返回 render_url 缓存；若 render_url 为空则继续请求第三方
         } elseif ($queryId !== '') {
             $cachedUrl = (string)($generated['image_url'] ?? '');
             if ($cachedUrl === '') {
@@ -308,10 +416,23 @@ class Image extends BaseController
                     ->whereNull('deleted_at')
                     ->setInc('remaining_renders', 1);
 
-                // 防重复返还：将该生成记录置为无效
-                Db::name('generated_image')
-                    ->where('id', (int)$generated['id'])
-                    ->update(['status' => 0]);
+                // 防重复返还：
+                // - 如果是“渲染图（render_query_id）”任务失败：只清理渲染任务字段，避免把原始设计图整行置为无效。
+                // - 如果是“原图（query_id）”任务失败：保持原逻辑，把整行置为无效，防止重复返还。
+                if ($renderQueryId !== '' && $queryId === '') {
+                    Db::name('generated_image')
+                        ->where('id', (int)$generated['id'])
+                        ->update([
+                            'render_query_id' => '',
+                            'render_url' => null,
+                            // 保留 status=1，使得 image_url 仍可用
+                            'status' => 1,
+                        ]);
+                } else {
+                    Db::name('generated_image')
+                        ->where('id', (int)$generated['id'])
+                        ->update(['status' => 0]);
+                }
 
                 $this->writeLog(
                     'image_result_failed',

@@ -60,6 +60,8 @@ Route::group('image', function () {
     Route::post('generate-image', 'Image/generateImage');
     // 查询图片生成结果
     Route::post('get-image-result', 'Image/getImageResult');
+    // 生成最终实体渲染图
+    Route::post('generate-render-image', 'Image/generateRenderImage');
     // 获取当前分类下用户的已生成图片
     Route::post('generated-images', 'GeneratedImage/listByCategory');
 })->middleware('auth');

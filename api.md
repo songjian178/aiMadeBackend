@@ -1082,15 +1082,21 @@
 }
 ```
 
-### 8. 获取用户分享的创意图片
+### 8. 获取用户分享的创意社区图片
 
 **请求地址**：`/image/shared-creatives`
 **请求方式**：POST
 **是否需要 token**：否
 
-**请求参数**：无
+**请求参数**：
+
+| 参数名 | 类型 | 必填 | 描述 |
+|-------|------|------|------|
+| imageId | string | 否 | base64 加密后的 `aimade_generated_image.id` 主键；传入后对应图片会被放在返回数组的第一个 |
 
 **说明**：根据 `aimade_creative_community`（`status=1`）筛选已分享的创意图片，并联表 `aimade_generated_image` 与 `aimade_order_corpus` 获取展示数据。
+
+当传入 `imageId` 时，会先解密并查出对应的 `aimade_generated_image` 记录，将其放在返回列表第一个；剩余图片仍按原排序查询，并自动避免重复。
 
 接口字段说明：
 - `aimade_generated_image`：只返回 `image_url/render_url`
@@ -1249,6 +1255,46 @@
   "code": 401,
   "message": "请先登录",
   "data": null
+}
+```
+
+### 3. 更新社区图片浏览量
+
+**请求地址**：`/community/views`
+**请求方式**：POST
+**是否需要 token**：否
+
+**请求参数**：
+
+| 参数名 | 类型 | 必填 | 描述 |
+|-------|------|------|------|
+| id | int | 是 | 创意社区收录记录 ID（`aimade_creative_community.id`） |
+
+**说明**：
+- 使用 Redis 做 24 小时限流：同一 `用户 IP` 对某个 `id` 在 24 小时内只会计数 1 次（Redis 以“每个 IP 一个 key + 记录访问过的 id 列表”方式存储，避免大量 `ip+id` key 产生）；
+- 未命中限流时，对 `aimade_creative_community.views_count` 自增 `+1`；
+- 命中限流时跳过自增。
+
+**返回示例**：
+```json
+// 首次访问（自增成功）
+{
+  "code": 200,
+  "message": "访问量更新成功",
+  "data": {
+    "incremented": 1,
+    "views_count": 123
+  }
+}
+
+// 24 小时内重复访问（不自增）
+{
+  "code": 200,
+  "message": "已跳过重复访问",
+  "data": {
+    "incremented": 0,
+    "views_count": 123
+  }
 }
 ```
 

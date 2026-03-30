@@ -144,10 +144,16 @@ class Image extends BaseController
 
             // 勾选分享到社区时，创建社区收录记录
             if ($shareToCommunity) {
-                $title = function_exists('mb_substr') ? mb_substr($prompt, 0, 100, 'UTF-8') : substr($prompt, 0, 100);
-                if ($title === '') {
-                    $title = 'AI生成作品';
-                }
+                $categoryName = Db::name('entity_category')
+                    ->where('id', $categoryId)
+                    ->where('status', 1)
+                    ->whereNull('deleted_at')
+                    ->value('name');
+
+                $title = (string)($categoryName ?? '');
+                $title = $title !== ''
+                    ? (function_exists('mb_substr') ? mb_substr($title, 0, 100, 'UTF-8') : substr($title, 0, 100))
+                    : 'AI生成作品';
 
                 Db::name('creative_community')->insert([
                     'image_id' => (int)$generatedImageId,
@@ -345,22 +351,67 @@ class Image extends BaseController
      */
     public function sharedCreativeImages()
     {
-        // 只展示已分享（status=1）的社区收录记录，并返回图片/渲染两类地址
-        $list = Db::name('creative_community')->alias('cc')
+        $imageIdB64 = trim((string)$this->request->post('imageId', ''));
+        $imagePk = 0;
+        if ($imageIdB64 !== '') {
+            $decoded = base64_decode($imageIdB64, true);
+            if ($decoded !== false) {
+                $decoded = trim((string)$decoded);
+                if (ctype_digit($decoded)) {
+                    $imagePk = (int)$decoded;
+                }
+            }
+        }
+
+        $field = 'cc.id as creative_id, cc.title, cc.description, cc.likes_count, cc.views_count, cc.is_public, oc.id as corpus_id, oc.prompt, gi.image_url, gi.render_url';
+
+        // 如果传入 imageId，则把对应图片放在数组第一个
+        $firstRow = null;
+        if ($imagePk > 0) {
+            $firstRow = Db::name('creative_community')->alias('cc')
+                ->join('generated_image gi', 'gi.id = cc.image_id')
+                ->join('order_corpus oc', 'oc.id = gi.corpus_id')
+                ->field($field)
+                ->where('cc.status', 1)
+                ->whereNull('cc.deleted_at')
+                ->where('gi.status', 1)
+                ->whereNull('gi.deleted_at')
+                ->where('oc.status', 1)
+                ->whereNull('oc.deleted_at')
+                ->where('cc.id', $imagePk)
+                ->find();
+        }
+
+        // 其余图片：仍按 cc.id 倒序，同时排除已置顶那条，避免重复
+        $listQuery = Db::name('creative_community')->alias('cc')
             ->join('generated_image gi', 'gi.id = cc.image_id')
             ->join('order_corpus oc', 'oc.id = gi.corpus_id')
-            ->field('cc.id as creative_id, cc.title, cc.description, cc.likes_count, cc.views_count, cc.is_public, oc.id as corpus_id, oc.prompt, gi.image_url, gi.render_url')
+            ->field($field)
             ->where('cc.status', 1)
             ->whereNull('cc.deleted_at')
             ->where('gi.status', 1)
             ->whereNull('gi.deleted_at')
             ->where('oc.status', 1)
-            ->whereNull('oc.deleted_at')
+            ->whereNull('oc.deleted_at');
+
+        if ($imagePk > 0) {
+            $listQuery->where('gi.id', '<>', $imagePk);
+        }
+
+        $list = $listQuery
             ->order('cc.id', 'desc')
             ->select()
             ->toArray();
 
-        return $this->success($list, '获取用户分享的创意图片成功');
+        $result = [];
+        if (is_array($firstRow) && !empty($firstRow)) {
+            $result[] = $firstRow;
+        }
+        foreach ($list as $row) {
+            $result[] = $row;
+        }
+
+        return $this->success($result, '获取用户分享的创意图片成功');
     }
 }
 

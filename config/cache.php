@@ -6,13 +6,13 @@
 
 return [
     // 默认缓存驱动
-    'default' => 'file',
+    'default' => 'redis',
 
     // 缓存连接方式配置
     'stores'  => [
         'file' => [
             // 驱动方式
-            'type'       => 'File',
+            'type'       => 'redis',
             // 缓存保存目录
             'path'       => '',
             // 缓存前缀

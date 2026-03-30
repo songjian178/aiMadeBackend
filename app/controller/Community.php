@@ -5,6 +5,7 @@ namespace app\controller;
 
 use app\BaseController;
 use think\facade\Db;
+use think\facade\Cache;
 
 class Community extends BaseController
 {
@@ -144,5 +145,68 @@ class Community extends BaseController
             'page' => $page,
             'per_page' => $perPage,
         ], '获取收藏列表成功');
+    }
+
+    /**
+     * 更新社区图片浏览量（24小时内同一 IP + 同一 id 只计数一次）
+     * @return \think\Response
+     */
+    public function updateViewsCount()
+    {
+        $communityId = (int)$this->request->post('id', 0);
+        if ($communityId <= 0) {
+            return $this->error('参数不完整');
+        }
+
+        $ip = (string)$this->request->ip();
+        $ipHash = md5($ip !== '' ? $ip : 'unknown');
+        // 只使用一个 key（每个 IP 一个 key），value 内记录该 IP 在 24 小时内访问过哪些 id
+        $key = 'creative_community_views_ip:' . $ipHash;
+        $ttlSeconds = 24 * 60 * 60;
+
+        $cache = Cache::store('redis');
+
+        $community = Db::name('creative_community')
+            ->where('id', $communityId)
+            ->where('status', 1)
+            ->whereNull('deleted_at')
+            ->find();
+        if (!$community) {
+            return $this->error('社区收录不存在');
+        }
+
+        $state = $cache->get($key);
+        // state 结构：['{communityId}'=>timestamp]
+        if (!is_array($state)) {
+            $state = [];
+        }
+
+        $now = time();
+        $lastTs = isset($state[(string)$communityId]) ? (int)$state[(string)$communityId] : 0;
+        $already = $lastTs > 0 && ($now - $lastTs) < $ttlSeconds;
+        if ($already) {
+            return $this->success([
+                'incremented' => 0,
+                'views_count' => (int)$community['views_count'],
+            ], '已跳过重复访问');
+        }
+
+        // 写入 Redis（记录本次访问时间），再更新数据库计数
+        $state[(string)$communityId] = $now;
+        $cache->set($key, $state, $ttlSeconds);
+        Db::name('creative_community')
+            ->where('id', $communityId)
+            ->where('status', 1)
+            ->whereNull('deleted_at')
+            ->setInc('views_count', 1);
+
+        $viewsCount = Db::name('creative_community')
+            ->where('id', $communityId)
+            ->value('views_count');
+
+        return $this->success([
+            'incremented' => 1,
+            'views_count' => (int)($viewsCount ?? 0),
+        ], '访问量更新成功');
     }
 }

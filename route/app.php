@@ -73,6 +73,9 @@ Route::group('community', function () {
     Route::get('favorite-list', 'Community/favoriteList');
 })->middleware('auth');
 
+// 创意社区浏览量更新（公开接口，不需要 token）
+Route::post('community/views', 'Community/updateViewsCount');
+
 // 微信支付路由
 Route::group('pay', function () {
     // 创建Native支付订单

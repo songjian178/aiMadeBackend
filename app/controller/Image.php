@@ -313,7 +313,7 @@ class Image extends BaseController
         $generated = Db::name('generated_image')->alias('gi')
             ->join('order_corpus oc', 'oc.id = gi.corpus_id')
             ->join('entity_order o', 'o.id = oc.order_id')
-            ->field('gi.id,gi.query_id,gi.render_query_id,gi.status,gi.image_url,gi.render_url,o.user_id,o.category_id')
+            ->field('gi.id as image_id,gi.query_id,gi.render_query_id,gi.status,gi.image_url,gi.render_url,o.user_id,o.category_id')
             ->where('o.user_id', $userId)
             ->where('gi.status', 1)
             ->whereNull('gi.deleted_at')
@@ -324,7 +324,7 @@ class Image extends BaseController
                     $q->where('gi.query_id', $queryId);
                 }
                 if ($renderQueryId !== '') {
-                    $q->orWhere('gi.render_query_id', $renderQueryId);
+                    $q->where('gi.render_query_id', $renderQueryId);
                 }
             })
             ->find();
@@ -383,11 +383,11 @@ class Image extends BaseController
                 $update['image_url'] = $url;
             }
 
-            Db::name('generated_image')->where('id', (int)$generated['id'])->update($update);
+            Db::name('generated_image')->where('id', (int)$generated['image_id'])->update($update);
 
             // 图片真正生成成功后，公开到社区（将预创建记录置为有效）
             Db::name('creative_community')
-                ->where('image_id', (int)$generated['id'])
+                ->where('image_id', (int)$generated['image_id'])
                 ->where('user_id', $userId)
                 ->where('status', 0)
                 ->update(['status' => 1]);
@@ -397,7 +397,8 @@ class Image extends BaseController
             return $this->success([
                 'status' => 1,
                 'message' => '图片生成成功',
-                'url' => $url
+                'url' => $url,
+                'image_id' => (int)$generated['image_id'],
             ], '查询图片生成结果成功');
         }
 

@@ -26,7 +26,7 @@ class GeneratedImage extends BaseController
             ->alias('o')
             ->join('order_corpus oc', 'oc.order_id = o.id')
             ->join('generated_image gi', 'gi.corpus_id = oc.id')
-            ->field('gi.image_url,gi.render_url,gi.corpus_id,oc.prompt')
+            ->field('gi.id as image_id,gi.image_url,gi.render_url,gi.corpus_id,oc.prompt')
             ->where('o.user_id', $userId)
             ->where('o.category_id', $categoryId)
             ->where('o.order_status', 1)
@@ -44,6 +44,7 @@ class GeneratedImage extends BaseController
         $list = [];
         foreach ($rows as $row) {
             $list[] = [
+                'image_id' => (int)$row['image_id'],
                 'image_url' => $row['image_url'],
                 'render_url' => $row['render_url'],
                 'corpus_id' => (int)$row['corpus_id'],

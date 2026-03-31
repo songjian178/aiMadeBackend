@@ -213,6 +213,106 @@ class Order extends BaseController
     }
 
     /**
+     * 基于渲染图下单
+     * @return \think\Response
+     */
+    public function placeOrder()
+    {
+        $userId = $this->getCurrentUserId();
+        $imageId = (int)$this->request->post('image_id', 0);
+        $addressId = (int)$this->request->post('address_id', 0);
+
+        if ($imageId <= 0 || $addressId <= 0) {
+            return $this->error('参数不完整');
+        }
+
+        // 地址必须属于当前用户且可用
+        $address = Db::name('user_address')
+            ->where('id', $addressId)
+            ->where('user_id', $userId)
+            ->where('status', 1)
+            ->whereNull('deleted_at')
+            ->find();
+        if (!$address) {
+            return $this->error('地址不存在或不可用');
+        }
+
+        // 通过 generated_image -> order_corpus -> entity_order 找到对应订单
+        $target = Db::name('generated_image')->alias('gi')
+            ->join('order_corpus oc', 'oc.id = gi.corpus_id')
+            ->join('entity_order o', 'o.id = oc.order_id')
+            ->field('gi.id as image_id,gi.is_use,gi.render_url,o.id as order_id,o.user_id,o.order_status,o.payment_status')
+            ->where('gi.id', $imageId)
+            ->where('gi.status', 1)
+            ->whereNull('gi.deleted_at')
+            ->whereNull('oc.deleted_at')
+            ->whereNull('o.deleted_at')
+            ->where('o.user_id', $userId)
+            ->find();
+
+        if (!$target) {
+            return $this->error('图片记录不存在或无权限');
+        }
+
+        if ((int)$target['payment_status'] !== 1) {
+            return $this->error('订单未支付，无法下单');
+        }
+
+        if (trim((string)($target['render_url'] ?? '')) === '') {
+            return $this->error('渲染预览图尚未生成完成，无法下单');
+        }
+
+        Db::startTrans();
+        try {
+            // 1) 对应生成图标记为已用于下单
+            Db::name('generated_image')
+                ->where('id', $imageId)
+                ->update(['is_use' => 1]);
+
+            // 2) 订单状态改为“2：下单”，并绑定收货地址
+            Db::name('entity_order')
+                ->where('id', (int)$target['order_id'])
+                ->where('user_id', $userId)
+                ->update([
+                    'order_status' => 2,
+                    'address_id' => $addressId,
+                ]);
+
+            // 3) 新增订单状态流水
+            Db::name('order_status')->insert([
+                'order_id' => (int)$target['order_id'],
+                'user_id' => $userId,
+                'status' => 2,
+                'remark' => '用户提交下单，绑定地址ID：' . $addressId,
+            ]);
+
+            // 4) 下单后将当前订单对应权益次数清零，后续不可继续使用
+            Db::name('user_purchased_entity')
+                ->where('order_id', (int)$target['order_id'])
+                ->where('user_id', $userId)
+                ->where('status', 1)
+                ->whereNull('deleted_at')
+                ->update(['remaining_renders' => 0]);
+
+            Db::commit();
+        } catch (\Throwable $e) {
+            Db::rollback();
+            $this->writeLog('order_place', '基于渲染图下单失败：' . $e->getMessage(), $userId, 3);
+            return $this->error('下单失败，请稍后重试');
+        }
+
+        $this->writeLog('order_place', '用户基于渲染图下单成功，image_id=' . $imageId, $userId);
+
+        return $this->success([
+            'image_id' => $imageId,
+            'order_id' => (int)$target['order_id'],
+            'order_status' => 2,
+            'order_status_name' => OrderStatusEnum::getName(2),
+            'address_id' => $addressId,
+        ], '下单成功');
+    }
+
+    /**
      * 微信支付回调（APIv3：验签 + 解密 resource，与 createPayQrCode 下单参数一致）
      * 下单 attach：{"order_type":"wx","extra":"<order_no>"}，回调用 out_trade_no / attach 与本地订单对齐。
      *

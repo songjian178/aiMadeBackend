@@ -22,6 +22,7 @@
 - 2026-03-28：更新订单模块「生成订单二维码」接口（整合微信 Native 下单，返回真实 code_url）
 - 2026-03-28：新增创意社区模块接口（收藏社区图片、获取我的收藏列表）
 - 2026-03-30：新增图片模块接口（生成最终实体渲染图）
+- 2026-03-30：新增订单模块接口（基于渲染图下单）
 - 2026-03-29：更新生成图片接口（prompt 敏感内容校验）
 
 ## 用户模块
@@ -830,7 +831,84 @@
 }
 ```
 
-### 4. 支付回调（测试伪回调）
+### 4. 基于渲染图下单
+
+**请求地址**：`/order/place-order`
+**请求方式**：POST
+**是否需要 token**：是
+**请求头**：
+- Authorization: Bearer {token}
+
+**请求参数**：
+
+| 参数名 | 类型 | 必填 | 描述 |
+|-------|------|------|------|
+| image_id | int | 是 | `aimade_generated_image.id` |
+| address_id | int | 是 | `aimade_user_address.id`（当前用户地址） |
+
+**说明**：
+- 通过 `aimade_generated_image` 找到 `corpus_id`，再通过 `aimade_order_corpus` 找到 `order_id`；
+- 仅允许使用 `render_url` 已生成完成的图片下单（`render_url` 非空）；
+- 将 `aimade_generated_image.is_use` 更新为 `1`；
+- 将 `aimade_entity_order.order_status` 更新为 `2`（下单），并更新 `address_id`；
+- 向 `aimade_order_status` 新增一条状态记录（`status=2`）；
+- 下单成功后，将当前订单对应 `aimade_user_purchased_entity.remaining_renders` 置为 `0`（后续不可再生成）。
+
+**返回示例**：
+
+```json
+// 成功
+{
+  "code": 200,
+  "message": "下单成功",
+  "data": {
+    "image_id": 10,
+    "order_id": 1001,
+    "order_status": 2,
+    "order_status_name": "下单",
+    "address_id": 3
+  }
+}
+
+// 失败
+{
+  "code": 400,
+  "message": "参数不完整",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "地址不存在或不可用",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "图片记录不存在或无权限",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "订单未支付，无法下单",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "渲染预览图尚未生成完成，无法下单",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "下单失败，请稍后重试",
+  "data": null
+}
+```
+
+### 5. 支付回调（测试伪回调）
 
 **请求地址**：`/order/pay-callback`    
 **请求方式**：POST  
@@ -1024,7 +1102,8 @@
   "data": {
     "status": 1,
     "message": "图片生成成功",
-    "url": "https://example.com/image.png"
+    "url": "https://example.com/image.png",
+    "image_id": "1234567890"
   }
 }
 
@@ -1109,6 +1188,7 @@
   "message": "获取生成图片列表成功",
   "data": [
     {
+      "image_id": 1,
       "image_url": "https://example.com/image.png",
       "render_url": "https://example.com/render.png",
       "corpus_id": 12,

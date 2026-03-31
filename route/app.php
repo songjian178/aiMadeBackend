@@ -48,6 +48,8 @@ Route::group('address', function () {
 Route::group('order', function () {
     // 生成订单二维码
     Route::post('create-pay-qrcode', 'Order/createPayQrCode');
+    // 基于渲染图下单
+    Route::post('place-order', 'Order/placeOrder');
     // 订单心跳检测
     Route::post('heartbeat', 'Order/heartbeat');
     // 我的订单列表（已支付）

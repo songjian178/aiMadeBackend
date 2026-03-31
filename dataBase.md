@@ -193,6 +193,7 @@
 | image_size | int | 11 | NULL | 图片大小（字节） |
 | query_id | varchar | 255 | NULL | 第三方生成图片接口返回的唯一ID |
 | render_query_id | varchar | 255 | NULL | 第三方生成渲染图片接口返回的唯一ID |
+| is_use | tinyint | 2 | DEFAULT 0 | 是否使用下单（1：是，0：否） |
 | status | tinyint | 1 | DEFAULT 1 | 状态（1：有效，0：无效） |
 | created_at | datetime | - | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
 | updated_at | datetime | - | DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间 |
@@ -625,6 +626,7 @@ CREATE TABLE `aimade_generated_image` (
   `image_size` int(11) DEFAULT NULL COMMENT '图片大小（字节）',
   `query_id` varchar(255)  NOT NULL COMMENT '第三方生成图片接口返回的唯一ID',
   `render_query_id` varchar(255)  NOT NULL COMMENT '第三方生成渲染图片接口返回的唯一ID',
+  `is_use` tinyint(2) DEFAULT '0' COMMENT '是否使用下单（1：是，0：否）',
   `status` tinyint(1) DEFAULT '1' COMMENT '状态（1：有效，0：无效）',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',

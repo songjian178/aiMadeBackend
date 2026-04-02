@@ -23,6 +23,8 @@ Route::group('user', function () {
 Route::group('entity', function () {
     // 获取实体分类列表
     Route::get('category-list', 'Entity/categoryList');
+    // 获取实体详情
+    Route::get('category-detail', 'Entity/categoryDetail');
 });
 
 Route::group('entity', function () {
@@ -50,6 +52,8 @@ Route::group('order', function () {
     Route::post('create-pay-qrcode', 'Order/createPayQrCode');
     // 基于渲染图下单
     Route::post('place-order', 'Order/placeOrder');
+    // 获取订单状态列表
+    Route::get('status-list', 'Order/statusList');
     // 订单心跳检测
     Route::post('heartbeat', 'Order/heartbeat');
     // 我的订单列表（已支付）

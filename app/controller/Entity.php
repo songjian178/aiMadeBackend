@@ -24,7 +24,84 @@ class Entity extends BaseController
             ->select()
             ->toArray();
 
+        $categoryIds = array_column($list, 'id');
+        $bannerMap = [];
+        if (!empty($categoryIds)) {
+            $banners = Db::name('entity_category_banner')
+                ->field('category_id,image_url,sort')
+                ->whereIn('category_id', $categoryIds)
+                ->where('status', 1)
+                ->whereNull('deleted_at')
+                ->order('sort', 'asc')
+                ->order('id', 'asc')
+                ->select()
+                ->toArray();
+
+            foreach ($banners as $banner) {
+                $cid = (int)$banner['category_id'];
+                if (!isset($bannerMap[$cid])) {
+                    $bannerMap[$cid] = [];
+                }
+                $url = (string)($banner['image_url'] ?? '');
+                if ($url !== '') {
+                    $bannerMap[$cid][] = $url;
+                }
+            }
+        }
+
+        foreach ($list as &$row) {
+            $cid = (int)$row['id'];
+            $row['urls'] = $bannerMap[$cid] ?? [];
+        }
+        unset($row);
+
         return $this->success($list, '获取实体分类成功');
+    }
+
+    /**
+     * 获取实体详情
+     * @return \think\Response
+     */
+    public function categoryDetail()
+    {
+        $categoryId = (int)$this->request->get('category_id', 0);
+        if ($categoryId <= 0) {
+            return $this->error('参数不完整');
+        }
+
+        $detail = Db::name('entity_category')
+            ->field('id,name,price,validity_period,render_count,description,image_url,sort_order,placeholder')
+            ->where('id', $categoryId)
+            ->where('status', 1)
+            ->where('is_display', 1)
+            ->whereNull('deleted_at')
+            ->find();
+
+        if (!$detail) {
+            return $this->error('实体分类不存在或不可用');
+        }
+
+        $banners = Db::name('entity_category_banner')
+            ->field('image_url')
+            ->where('category_id', $categoryId)
+            ->where('status', 1)
+            ->whereNull('deleted_at')
+            ->order('sort', 'asc')
+            ->order('id', 'asc')
+            ->select()
+            ->toArray();
+
+        $urls = [];
+        foreach ($banners as $banner) {
+            $url = (string)($banner['image_url'] ?? '');
+            if ($url !== '') {
+                $urls[] = $url;
+            }
+        }
+
+        $detail['urls'] = $urls;
+
+        return $this->success($detail, '获取实体详情成功');
     }
 
     /**

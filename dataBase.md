@@ -61,6 +61,7 @@
 | description | text | - | NULL | 分类描述 |
 | image_url | varchar | 255 | NULL | 分类图片URL |
 | sort_order | int | 11 | DEFAULT 0 | 排序顺序 |
+| placeholder | varchar | 255 | NOT NULL | 备注默认占位符 |
 | status | tinyint | 1 | DEFAULT 1 | 状态（1：正常，0：禁用） |
 | created_at | datetime | - | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
 | updated_at | datetime | - | DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间 |
@@ -70,6 +71,24 @@
 - PRIMARY KEY (id)
 - KEY (sort_order)
 - KEY (is_display)
+
+### 3.1 实体分类介绍 Banner 图表 (aimade_entity_category_banner)
+
+| 字段名 | 数据类型 | 长度 | 约束 | 描述 |
+|-------|---------|------|------|------|
+| id | int | 11 | PRIMARY KEY, AUTO_INCREMENT | 记录ID |
+| category_id | int | 11 | NOT NULL | 实体分类ID（外键：aimade_entity_category.id） |
+| sort | int | 11 | DEFAULT 0 | 排序值（越小越靠前） |
+| image_url | varchar | 255 | NOT NULL | Banner 图片URL |
+| status | tinyint | 1 | DEFAULT 1 | 状态（1：正常，0：禁用） |
+| created_at | datetime | - | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
+| updated_at | datetime | - | DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间 |
+| deleted_at | datetime | - | NULL | 软删除时间 |
+
+**索引**：
+- PRIMARY KEY (id)
+- KEY (category_id)
+- KEY (sort)
 
 ### 4. 生成订单表 (aimade_entity_order)
 
@@ -367,6 +386,7 @@
 ### 4. 分类相关
 - `aimade_entity_category` ↔ `aimade_entity_order`：一对多（一个分类可以有多个订单）
 - `aimade_entity_category` ↔ `aimade_user_purchased_entity`：一对多（一个分类可以被多个用户购买）
+- `aimade_entity_category` ↔ `aimade_entity_category_banner`：一对多（一个分类可配置多张介绍 Banner 图）
 
 ### 5. 地址相关
 - `aimade_user_address` ↔ `aimade_entity_order`：一对多（一个地址可以用于多个订单）
@@ -494,6 +514,7 @@ CREATE TABLE `aimade_entity_category` (
   `description` text COMMENT '分类描述',
   `image_url` varchar(255) DEFAULT NULL COMMENT '分类图片URL',
   `sort_order` int(11) DEFAULT '0' COMMENT '排序顺序',
+  `placeholder` varchar(255) NOT NULL COMMENT '备注默认占位符',
   `status` tinyint(1) DEFAULT '1' COMMENT '状态（1：正常，0：禁用）',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -502,6 +523,24 @@ CREATE TABLE `aimade_entity_category` (
   KEY `sort_order` (`sort_order`),
   KEY `is_display` (`is_display`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='生成实体分类表';
+```
+
+### 3.1 实体分类介绍 Banner 图表 (aimade_entity_category_banner)
+
+```sql
+CREATE TABLE `aimade_entity_category_banner` (
+  `id` int(11) NOT NULL AUTO_INCREMENT COMMENT '记录ID',
+  `category_id` int(11) NOT NULL COMMENT '实体分类ID',
+  `sort` int(11) DEFAULT '0' COMMENT '排序值（越小越靠前）',
+  `image_url` varchar(255) NOT NULL COMMENT 'Banner 图片URL',
+  `status` tinyint(1) DEFAULT '1' COMMENT '状态（1：正常，0：禁用）',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted_at` datetime DEFAULT NULL COMMENT '软删除时间',
+  PRIMARY KEY (`id`),
+  KEY `category_id` (`category_id`),
+  KEY `sort` (`sort`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='实体分类介绍 Banner 图表';
 ```
 
 ### 4. 生成订单表 (aimade_entity_order)

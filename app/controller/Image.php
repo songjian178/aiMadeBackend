@@ -5,9 +5,11 @@ namespace app\controller;
 
 use app\BaseController;
 use app\enums\OrderStatusEnum;
+use app\service\GeneratedImageResultSyncService;
 use app\service\NanoBananaService;
 use app\service\PromptContentChecker;
 use think\facade\Db;
+use think\facade\Cache;
 
 class Image extends BaseController
 {
@@ -354,113 +356,82 @@ class Image extends BaseController
             ], '查询图片生成结果成功');
         }
 
+        // 按 taskId 加互斥锁（Redis）：避免定时任务与本接口同时请求第三方并重复返还 remaining_renders
+        $lockKey = 'lock:generated_image_result_task:' . md5($taskId);
+        $ttlSeconds = 300;
+        $token = bin2hex(random_bytes(16));
+        $redis = null;
         try {
-            $result = $this->nanoBananaService->getImageResult($taskId);
+            $redis = Cache::store('redis')->handler();
         } catch (\Throwable $e) {
-            $this->writeLog('image_result_query', '查询图片生成结果失败：' . $e->getMessage(), $userId, 3);
-            return $this->error('查询图片生成结果失败，请稍后重试');
+            $redis = null;
         }
 
-        $data = $result['data'] ?? [];
-        $status = (string)($data['status'] ?? '');
+        if ($redis !== null) {
+            $locked = true;
+            try {
+                if (is_object($redis) && get_class($redis) === 'Redis') {
+                    $res = $redis->set($lockKey, $token, ['nx', 'ex' => $ttlSeconds]);
+                } else {
+                    // Predis：SET key value NX EX seconds
+                    $res = $redis->set($lockKey, $token, 'NX', 'EX', $ttlSeconds);
+                }
 
-        // running：继续轮询
-        if ($status === 'running') {
-            return $this->success([
-                'status' => 0,
-                'message' => '图片正在生成中'
-            ], '查询图片生成结果成功');
-        }
-
-        // succeeded：回填图片信息
-        if ($status === 'succeeded') {
-
-            $url = $data['results'][0]['url'] ?? '';
-
-            if ($renderQueryId !== '') {
-                $update['render_url'] = $url;
-            }elseif ($queryId !== '') {
-                $update['image_url'] = $url;
+                $locked = ($res === true || $res === 'OK');
+            } catch (\Throwable $e) {
+                // 加锁失败时放行，避免任务永久卡死（可能会出现少量重复回查）
+                $locked = true;
             }
 
-            Db::name('generated_image')->where('id', (int)$generated['image_id'])->update($update);
+            if (!$locked) {
+                return $this->success([
+                    'status' => 0,
+                    'message' => '图片正在生成中'
+                ], '查询图片生成结果成功');
+            }
+        }
 
-            // 图片真正生成成功后，公开到社区（将预创建记录置为有效）
-            Db::name('creative_community')
-                ->where('image_id', (int)$generated['image_id'])
-                ->where('user_id', $userId)
-                ->where('status', 0)
-                ->update(['status' => 1]);
+        $sync = new GeneratedImageResultSyncService($this->nanoBananaService);
+        $isRenderPoll = $renderQueryId !== '' && $queryId === '';
+        try {
+            $out = $sync->pollThirdPartyAndPersist($generated, $taskId, $isRenderPoll, [
+                'operation_ip' => $this->request->ip(),
+                'user_agent' => $this->request->header('user-agent', ''),
+            ]);
+        } finally {
+            if ($redis !== null) {
+                try {
+                    $redis->del($lockKey);
+                } catch (\Throwable $e) {
+                    // ignore
+                }
+            }
+        }
 
-            $this->writeLog('image_result', '图片生成完成', $userId);
-
+        if ($out['type'] === 'error') {
+            return $this->error('查询图片生成结果失败，请稍后重试');
+        }
+        if ($out['type'] === 'running') {
+            return $this->success([
+                'status' => 0,
+                'message' => (string)($out['message'] ?? '图片正在生成中')
+            ], '查询图片生成结果成功');
+        }
+        if ($out['type'] === 'succeeded') {
             return $this->success([
                 'status' => 1,
                 'message' => '图片生成成功',
-                'url' => $url,
+                'url' => (string)($out['url'] ?? ''),
                 'image_id' => (int)$generated['image_id'],
             ], '查询图片生成结果成功');
         }
-
-        // status != succeeded：返还一次 remaining_renders（避免重复返还：将 generated_image 标记失效）
-        // 注意：若仍在 running 则不返还（否则会允许无限并发/重复扣减）。
-        if ($status !== 'running') {
-            $errorMsg = (string)($data['error'] ?? $data['failure_reason'] ?? $data['message'] ?? '图片生成失败');
-
-            Db::startTrans();
-            try {
-                // 返还扣减次数
-                Db::name('user_purchased_entity')
-                    ->where('user_id', $userId)
-                    ->where('category_id', (int)($generated['category_id'] ?? 0))
-                    ->where('status', 1)
-                    ->whereNull('deleted_at')
-                    ->setInc('remaining_renders', 1);
-
-                // 防重复返还：
-                // - 如果是“渲染图（render_query_id）”任务失败：只清理渲染任务字段，避免把原始设计图整行置为无效。
-                // - 如果是“原图（query_id）”任务失败：保持原逻辑，把整行置为无效，防止重复返还。
-                if ($renderQueryId !== '' && $queryId === '') {
-                    Db::name('generated_image')
-                        ->where('id', (int)$generated['id'])
-                        ->update([
-                            'render_query_id' => '',
-                            'render_url' => null,
-                            // 保留 status=1，使得 image_url 仍可用
-                            'status' => 1,
-                        ]);
-                } else {
-                    Db::name('generated_image')
-                        ->where('id', (int)$generated['id'])
-                        ->update(['status' => 0]);
-                }
-
-                $this->writeLog(
-                    'image_result_failed',
-                    '图片生成失败，query_id=' . $taskId . ' error=' . $errorMsg,
-                    $userId,
-                    3
-                );
-
-                Db::commit();
-            } catch (\Throwable $e) {
-                Db::rollback();
-                // 尽量不中断对外返回
-                $this->writeLog(
-                    'image_result_failed_refund_error',
-                    '返还 remaining_renders 失败，query_id=' . $taskId . ' error=' . $e->getMessage(),
-                    $userId,
-                    3
-                );
-            }
-
+        if ($out['type'] === 'failed') {
             return $this->success([
                 'status' => 0,
-                'message' => '图片生成失败：' . $errorMsg
+                'message' => '图片生成失败：' . (string)($out['message'] ?? '')
             ], '查询图片生成结果成功');
         }
 
-        // 兜底：未知状态
         return $this->success([
             'status' => 0,
             'message' => '图片生成处理中'
@@ -517,7 +488,7 @@ class Image extends BaseController
             ->whereNull('oc.deleted_at');
 
         if ($imagePk > 0) {
-            $listQuery->where('gi.id', '<>', $imagePk);
+            $listQuery->where('cc.id', '<>', $imagePk);
         }
 
         $list = $listQuery

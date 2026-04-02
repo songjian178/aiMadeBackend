@@ -5,5 +5,6 @@
 return [
     // 指令定义
     'commands' => [
+        'poll:generated-image-result' => \app\command\PollGeneratedImageResult::class,
     ],
 ];

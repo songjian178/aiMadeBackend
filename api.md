@@ -21,9 +21,12 @@
 - 2026-03-27：新增图片模块接口（获取用户分享的创意图片）
 - 2026-03-28：更新订单模块「生成订单二维码」接口（整合微信 Native 下单，返回真实 code_url）
 - 2026-03-28：新增创意社区模块接口（收藏社区图片、获取我的收藏列表）
+- 2026-03-29：更新生成图片接口（prompt 敏感内容校验）
 - 2026-03-30：新增图片模块接口（生成最终实体渲染图）
 - 2026-03-30：新增订单模块接口（基于渲染图下单）
-- 2026-03-29：更新生成图片接口（prompt 敏感内容校验）
+- 2026-03-30：新增订单模块接口（获取订单状态列表）
+- 2026-03-30：新增实体模块接口（获取实体详情）
+
 
 ## 用户模块
 
@@ -318,11 +321,7 @@
 **请求地址**：`/entity/category-list`
 **请求方式**：GET
 **是否需要 token**：否
-**请求参数**：
-
-| 参数名 | 类型 | 必填 | 描述 |
-|-------|------|------|------|
-| category_id | int | 是 | 选中的实体分类ID |
+**请求参数**：无
 
 **返回示例**：
 
@@ -340,7 +339,11 @@
       "render_count": 20,
       "description": "适合轻量体验",
       "image_url": "https://example.com/category/basic.png",
-      "sort_order": 1
+      "sort_order": 1,
+      "urls": [
+        "https://example.com/category/basic/banner1.png",
+        "https://example.com/category/basic/banner2.png"
+      ]
     }
   ]
 }
@@ -392,7 +395,57 @@
 }
 ```
 
-### 3. 用户制作历史
+### 3. 获取实体详情
+
+**请求地址**：`/entity/category-detail`
+**请求方式**：GET
+**是否需要 token**：否
+
+**请求参数**：
+
+| 参数名 | 类型 | 必填 | 描述 |
+|-------|------|------|------|
+| category_id | int | 是 | 实体分类ID |
+
+**返回示例**：
+
+```json
+// 成功
+{
+  "code": 200,
+  "message": "获取实体详情成功",
+  "data": {
+    "id": 1,
+    "name": "基础款",
+    "price": "99.00",
+    "validity_period": 30,
+    "render_count": 20,
+    "description": "适合轻量体验",
+    "image_url": "https://example.com/category/basic.png",
+    "sort_order": 1,
+    "placeholder": "请输入你的设计描述",
+    "urls": [
+      "https://example.com/category/basic/banner1.png",
+      "https://example.com/category/basic/banner2.png"
+    ]
+  }
+}
+
+// 失败
+{
+  "code": 400,
+  "message": "参数不完整",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "实体分类不存在或不可用",
+  "data": null
+}
+```
+
+### 4. 用户制作历史
 
 **请求地址**：`/entity/make-history`
 **请求方式**：GET
@@ -799,6 +852,8 @@
 
 **说明**：仅返回当前用户 `payment_status = 1`（已支付）的订单；数据由 `aimade_entity_order` 与 `aimade_user_purchased_entity` 内连表得到，并关联品类表展示名称与套餐渲染次数。购买时间取购买权益记录创建时间；`expire_time` 为 `aimade_user_purchased_entity.expire_time`（权益使用过期时间）。`order_status_name` 与库中枚举对应：0 待使用、1 生成中、2 下单、3 打样、4 生产、5 发货。
 
+当订单状态为 `2/3/4/5` 时，接口会返回该订单下 `aimade_generated_image.is_use=1` 的 `render_url`（用于展示当前制作中图片）；其它状态时 `render_url` 返回 `null`。
+
 **返回示例**：
 
 ```json
@@ -818,7 +873,8 @@
       "expire_time": "2026-04-23 12:35:00",
       "order_status": 0,
       "order_status_name": "待使用",
-      "total_amount": "99.00"
+      "total_amount": "99.00",
+      "render_url": null
     }
   ]
 }
@@ -830,8 +886,63 @@
   "data": null
 }
 ```
+ 
+### 4. 获取订单状态列表
 
-### 4. 基于渲染图下单
+**请求地址**：`/order/status-list`
+**请求方式**：GET
+**是否需要 token**：是
+**请求头**：
+- Authorization: Bearer {token}
+
+**请求参数**：
+
+| 参数名 | 类型 | 必填 | 描述 |
+|-------|------|------|------|
+| order_id | int | 是 | 订单ID（`aimade_entity_order.id`） |
+
+**说明**：在 `aimade_order_status` 中通过 `order_id` 查询订单状态流水，按 `id` 正序返回。
+
+**返回示例**：
+
+```json
+// 成功
+{
+  "code": 200,
+  "message": "获取订单状态列表成功",
+  "data": [
+    {
+      "id": 1,
+      "order_id": 1001,
+      "status": 0,
+      "status_name": "待使用",
+      "remark": "支付完成，订单进入待使用流程",
+      "created_at": "2026-03-30 10:00:00"
+    }
+  ]
+}
+
+// 失败
+{
+  "code": 401,
+  "message": "请先登录",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "参数不完整",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "订单不存在",
+  "data": null
+}
+```
+
+### 5. 基于渲染图下单
 
 **请求地址**：`/order/place-order`
 **请求方式**：POST
@@ -845,14 +956,15 @@
 |-------|------|------|------|
 | image_id | int | 是 | `aimade_generated_image.id` |
 | address_id | int | 是 | `aimade_user_address.id`（当前用户地址） |
+| remark | string | 否 | 下单备注，写入 `aimade_order_status.remark`（不传则使用默认文案） |
 
 **说明**：
 - 通过 `aimade_generated_image` 找到 `corpus_id`，再通过 `aimade_order_corpus` 找到 `order_id`；
 - 仅允许使用 `render_url` 已生成完成的图片下单（`render_url` 非空）；
 - 将 `aimade_generated_image.is_use` 更新为 `1`；
 - 将 `aimade_entity_order.order_status` 更新为 `2`（下单），并更新 `address_id`；
-- 向 `aimade_order_status` 新增一条状态记录（`status=2`）；
-- 下单成功后，将当前订单对应 `aimade_user_purchased_entity.remaining_renders` 置为 `0`（后续不可再生成）。
+- 向 `aimade_order_status` 新增一条状态记录（`status=2`），`remark` 优先取请求参数；
+- 下单成功后，将当前订单对应 `aimade_user_purchased_entity` 记录 `status` 置为 `0`，并将 `remaining_renders` 置为 `0`（后续不可再生成）。
 
 **返回示例**：
 

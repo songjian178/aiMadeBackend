@@ -187,6 +187,30 @@ class Order extends BaseController
             ->select()
             ->toArray();
 
+        $orderIds = array_map(static fn($row) => (int)$row['order_id'], $rows);
+        $usedRenderMap = [];
+        if (!empty($orderIds)) {
+            $usedRows = Db::name('order_corpus')->alias('oc')
+                ->join('generated_image gi', 'gi.corpus_id = oc.id')
+                ->field('oc.order_id,gi.render_url')
+                ->whereIn('oc.order_id', $orderIds)
+                ->where('oc.status', 1)
+                ->whereNull('oc.deleted_at')
+                ->where('gi.status', 1)
+                ->whereNull('gi.deleted_at')
+                ->where('gi.is_use', 1)
+                ->order('gi.id', 'desc')
+                ->select()
+                ->toArray();
+
+            foreach ($usedRows as $usedRow) {
+                $oid = (int)$usedRow['order_id'];
+                if (!isset($usedRenderMap[$oid])) {
+                    $usedRenderMap[$oid] = $usedRow['render_url'] !== null ? (string)$usedRow['render_url'] : null;
+                }
+            }
+        }
+
         $list = [];
         foreach ($rows as $row) {
             $initial = (int)($row['initial_render_count'] ?? 0);
@@ -194,8 +218,12 @@ class Order extends BaseController
             $used = max(0, $initial - $remaining);
 
             $orderStatus = (int)($row['order_status'] ?? 0);
+            $orderId = (int)$row['order_id'];
+            $usedRenderUrl = in_array($orderStatus, [2, 3, 4, 5], true)
+                ? ($usedRenderMap[$orderId] ?? null)
+                : null;
             $list[] = [
-                'order_id' => (int)$row['order_id'],
+                'order_id' => $orderId,
                 'order_no' => (string)$row['order_no'],
                 'category_name' => (string)$row['category_name'],
                 'initial_render_count' => $initial,
@@ -206,10 +234,60 @@ class Order extends BaseController
                 'order_status' => $orderStatus,
                 'order_status_name' => OrderStatusEnum::getName($orderStatus),
                 'total_amount' => (string)$row['total_amount'],
+                'render_url' => $usedRenderUrl,
             ];
         }
 
         return $this->success($list, '获取订单列表成功');
+    }
+
+    /**
+     * 获取订单状态列表（按订单ID）
+     * @return \think\Response
+     */
+    public function statusList()
+    {
+        $userId = $this->getCurrentUserId();
+        $orderId = (int)$this->request->get('order_id', (int)$this->request->post('order_id', 0));
+
+        if ($orderId <= 0) {
+            return $this->error('参数不完整');
+        }
+
+        // 校验订单归属
+        $order = Db::name('entity_order')
+            ->field('id,user_id')
+            ->where('id', $orderId)
+            ->where('user_id', $userId)
+            ->where('status', 1)
+            ->whereNull('deleted_at')
+            ->find();
+        if (!$order) {
+            return $this->error('订单不存在');
+        }
+
+        $rows = Db::name('order_status')
+            ->where('order_id', $orderId)
+            ->where('user_id', $userId)
+            ->whereNull('deleted_at')
+            ->order('id', 'asc')
+            ->select()
+            ->toArray();
+
+        $list = [];
+        foreach ($rows as $row) {
+            $status = (int)($row['status'] ?? 0);
+            $list[] = [
+                'id' => (int)$row['id'],
+                'order_id' => (int)$row['order_id'],
+                'status' => $status,
+                'status_name' => OrderStatusEnum::getName($status),
+                'remark' => $row['remark'] !== null ? (string)$row['remark'] : null,
+                'created_at' => $row['created_at'] ?? null,
+            ];
+        }
+
+        return $this->success($list, '获取订单状态列表成功');
     }
 
     /**
@@ -221,6 +299,7 @@ class Order extends BaseController
         $userId = $this->getCurrentUserId();
         $imageId = (int)$this->request->post('image_id', 0);
         $addressId = (int)$this->request->post('address_id', 0);
+        $remark = trim((string)$this->request->post('remark', ''));
 
         if ($imageId <= 0 || $addressId <= 0) {
             return $this->error('参数不完整');
@@ -283,7 +362,7 @@ class Order extends BaseController
                 'order_id' => (int)$target['order_id'],
                 'user_id' => $userId,
                 'status' => 2,
-                'remark' => '用户提交下单，绑定地址ID：' . $addressId,
+                'remark' => '用户提交下单，绑定地址ID：' . $addressId."，备注：".$remark,
             ]);
 
             // 4) 下单后将当前订单对应权益次数清零，后续不可继续使用
@@ -292,7 +371,11 @@ class Order extends BaseController
                 ->where('user_id', $userId)
                 ->where('status', 1)
                 ->whereNull('deleted_at')
-                ->update(['remaining_renders' => 0]);
+                ->update([
+                    // 标记权益不可再使用（生成次数清零 + 状态置为不可用）
+                    'status' => 0,
+                    'remaining_renders' => 0
+                ]);
 
             Db::commit();
         } catch (\Throwable $e) {

@@ -300,9 +300,18 @@ class Order extends BaseController
         $imageId = (int)$this->request->post('image_id', 0);
         $addressId = (int)$this->request->post('address_id', 0);
         $remark = trim((string)$this->request->post('remark', ''));
+        $attributeValuesRaw = $this->request->post('attribute_values', []);
 
         if ($imageId <= 0 || $addressId <= 0) {
             return $this->error('参数不完整');
+        }
+
+        if (is_string($attributeValuesRaw)) {
+            $decoded = json_decode($attributeValuesRaw, true);
+            $attributeValuesRaw = is_array($decoded) ? $decoded : [];
+        }
+        if (!is_array($attributeValuesRaw)) {
+            return $this->error('属性参数格式错误');
         }
 
         // 地址必须属于当前用户且可用
@@ -320,7 +329,7 @@ class Order extends BaseController
         $target = Db::name('generated_image')->alias('gi')
             ->join('order_corpus oc', 'oc.id = gi.corpus_id')
             ->join('entity_order o', 'o.id = oc.order_id')
-            ->field('gi.id as image_id,gi.is_use,gi.render_url,o.id as order_id,o.user_id,o.order_status,o.payment_status')
+            ->field('gi.id as image_id,gi.is_use,gi.render_url,o.id as order_id,o.user_id,o.order_status,o.payment_status,o.category_id')
             ->where('gi.id', $imageId)
             ->where('gi.status', 1)
             ->whereNull('gi.deleted_at')
@@ -339,6 +348,60 @@ class Order extends BaseController
 
         if (trim((string)($target['render_url'] ?? '')) === '') {
             return $this->error('渲染预览图尚未生成完成，无法下单');
+        }
+
+        // 处理并校验属性值选择（可选）
+        $orderAttrRows = [];
+        if (!empty($attributeValuesRaw)) {
+            $normalized = [];
+            foreach ($attributeValuesRaw as $item) {
+                if (!is_array($item)) {
+                    return $this->error('属性参数格式错误');
+                }
+
+                $attributeId = (int)($item['attribute_id'] ?? 0);
+                $attributeValueId = (int)($item['attribute_value_id'] ?? 0);
+                if ($attributeId <= 0 || $attributeValueId <= 0) {
+                    return $this->error('属性参数格式错误');
+                }
+
+                // 同一属性重复传时，以最后一次为准
+                $normalized[$attributeId] = $attributeValueId;
+            }
+
+            $valueIds = array_values($normalized);
+            $validRows = Db::name('entity_attribute_value')->alias('eav')
+                ->join('entity_attribute ea', 'ea.id = eav.attribute_id')
+                ->field('ea.id as attribute_id,eav.id as attribute_value_id')
+                ->whereIn('eav.id', $valueIds)
+                ->where('ea.category_id', (int)$target['category_id'])
+                ->where('ea.status', 1)
+                ->whereNull('ea.deleted_at')
+                ->where('eav.status', 1)
+                ->whereNull('eav.deleted_at')
+                ->select()
+                ->toArray();
+
+            $validMap = [];
+            foreach ($validRows as $vr) {
+                $validMap[(int)$vr['attribute_value_id']] = (int)$vr['attribute_id'];
+            }
+
+            foreach ($normalized as $attributeId => $attributeValueId) {
+                if (!isset($validMap[$attributeValueId])) {
+                    return $this->error('存在无效的属性值');
+                }
+                if ((int)$validMap[$attributeValueId] !== (int)$attributeId) {
+                    return $this->error('属性与属性值不匹配');
+                }
+
+                $orderAttrRows[] = [
+                    'order_id' => (int)$target['order_id'],
+                    'attribute_id' => (int)$attributeId,
+                    'attribute_value_id' => (int)$attributeValueId,
+                    'status' => 1,
+                ];
+            }
         }
 
         Db::startTrans();
@@ -376,6 +439,33 @@ class Order extends BaseController
                     'status' => 0,
                     'remaining_renders' => 0
                 ]);
+
+            // 5) 保存用户下单时选择的属性与属性值
+            if (!empty($orderAttrRows)) {
+                $selectedAttrIds = array_map(static fn($row) => (int)$row['attribute_id'], $orderAttrRows);
+
+                // 未本次选中的历史属性行置为无效
+                Db::name('order_attribute_value')
+                    ->where('order_id', (int)$target['order_id'])
+                    ->whereNull('deleted_at')
+                    ->whereNotIn('attribute_id', $selectedAttrIds)
+                    ->update(['status' => 0]);
+
+                foreach ($orderAttrRows as $attrRow) {
+                    $affected = Db::name('order_attribute_value')
+                        ->where('order_id', (int)$target['order_id'])
+                        ->where('attribute_id', (int)$attrRow['attribute_id'])
+                        ->whereNull('deleted_at')
+                        ->update([
+                            'attribute_value_id' => (int)$attrRow['attribute_value_id'],
+                            'status' => 1,
+                        ]);
+
+                    if ((int)$affected === 0) {
+                        Db::name('order_attribute_value')->insert($attrRow);
+                    }
+                }
+            }
 
             Db::commit();
         } catch (\Throwable $e) {

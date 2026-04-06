@@ -26,6 +26,7 @@ class Entity extends BaseController
 
         $categoryIds = array_column($list, 'id');
         $bannerMap = [];
+        $attrMap = [];
         if (!empty($categoryIds)) {
             $banners = Db::name('entity_category_banner')
                 ->field('category_id,image_url,sort')
@@ -47,11 +48,67 @@ class Entity extends BaseController
                     $bannerMap[$cid][] = $url;
                 }
             }
+
+            $attrs = Db::name('entity_attribute')
+                ->field('id,category_id,attr_name,sort')
+                ->whereIn('category_id', $categoryIds)
+                ->where('status', 1)
+                ->whereNull('deleted_at')
+                ->order('sort', 'asc')
+                ->order('id', 'asc')
+                ->select()
+                ->toArray();
+
+            $attrIds = [];
+            foreach ($attrs as $attr) {
+                $attrId = (int)$attr['id'];
+                $attrIds[] = $attrId;
+            }
+
+            $valueMap = [];
+            if (!empty($attrIds)) {
+                $values = Db::name('entity_attribute_value')
+                    ->field('id,attribute_id,attr_value,is_default,remark,sort')
+                    ->whereIn('attribute_id', $attrIds)
+                    ->where('status', 1)
+                    ->whereNull('deleted_at')
+                    ->order('sort', 'asc')
+                    ->order('id', 'asc')
+                    ->select()
+                    ->toArray();
+
+                foreach ($values as $valueRow) {
+                    $aid = (int)$valueRow['attribute_id'];
+                    if (!isset($valueMap[$aid])) {
+                        $valueMap[$aid] = [];
+                    }
+                    $valueMap[$aid][] = [
+                        'id' => (int)$valueRow['id'],
+                        'value' => (string)($valueRow['attr_value'] ?? ''),
+                        'is_default' => (int)($valueRow['is_default'] ?? 0),
+                        'remark' => (string)($valueRow['remark'] ?? ''),
+                    ];
+                }
+            }
+
+            foreach ($attrs as $attr) {
+                $cid = (int)$attr['category_id'];
+                $aid = (int)$attr['id'];
+                if (!isset($attrMap[$cid])) {
+                    $attrMap[$cid] = [];
+                }
+                $attrMap[$cid][] = [
+                    'attribute_id' => $aid,
+                    'attribute_name' => (string)($attr['attr_name'] ?? ''),
+                    'values' => $valueMap[$aid] ?? [],
+                ];
+            }
         }
 
         foreach ($list as &$row) {
             $cid = (int)$row['id'];
             $row['urls'] = $bannerMap[$cid] ?? [];
+            $row['attributes'] = $attrMap[$cid] ?? [];
         }
         unset($row);
 
@@ -100,6 +157,52 @@ class Entity extends BaseController
         }
 
         $detail['urls'] = $urls;
+        $attributes = Db::name('entity_attribute')
+            ->field('id,attr_name')
+            ->where('category_id', $categoryId)
+            ->where('status', 1)
+            ->whereNull('deleted_at')
+            ->order('sort', 'asc')
+            ->order('id', 'asc')
+            ->select()
+            ->toArray();
+
+        $attrIds = array_map(static fn($row) => (int)$row['id'], $attributes);
+        $valueMap = [];
+        if (!empty($attrIds)) {
+            $values = Db::name('entity_attribute_value')
+                ->field('id,attribute_id,attr_value,is_default,remark')
+                ->whereIn('attribute_id', $attrIds)
+                ->where('status', 1)
+                ->whereNull('deleted_at')
+                ->order('sort', 'asc')
+                ->order('id', 'asc')
+                ->select()
+                ->toArray();
+
+            foreach ($values as $valueRow) {
+                $aid = (int)$valueRow['attribute_id'];
+                if (!isset($valueMap[$aid])) {
+                    $valueMap[$aid] = [];
+                }
+                $valueMap[$aid][] = [
+                    'id' => (int)$valueRow['id'],
+                    'value' => (string)($valueRow['attr_value'] ?? ''),
+                    'is_default' => (int)($valueRow['is_default'] ?? 0),
+                    'remark' => (string)($valueRow['remark'] ?? ''),
+                ];
+            }
+        }
+
+        $detail['attributes'] = [];
+        foreach ($attributes as $attrRow) {
+            $aid = (int)$attrRow['id'];
+            $detail['attributes'][] = [
+                'attribute_id' => $aid,
+                'attribute_name' => (string)($attrRow['attr_name'] ?? ''),
+                'values' => $valueMap[$aid] ?? [],
+            ];
+        }
 
         return $this->success($detail, '获取实体详情成功');
     }

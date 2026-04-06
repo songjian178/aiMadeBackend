@@ -445,6 +445,11 @@ class Image extends BaseController
     public function sharedCreativeImages()
     {
         $imageIdB64 = trim((string)$this->request->post('imageId', ''));
+        $page = (int)$this->request->post('page', 1);
+        if ($page <= 0) {
+            $page = 1;
+        }
+        $perPage = 10;
         $imagePk = 0;
         if ($imageIdB64 !== '') {
             $decoded = base64_decode($imageIdB64, true);
@@ -491,20 +496,42 @@ class Image extends BaseController
             $listQuery->where('cc.id', '<>', $imagePk);
         }
 
+        $normalTotal = (int)(clone $listQuery)->count();
+        $total = $normalTotal + ((is_array($firstRow) && !empty($firstRow)) ? 1 : 0);
+        $totalPage = $total > 0 ? (int)ceil($total / $perPage) : 0;
+
+        $result = [];
+        $hasFirst = is_array($firstRow) && !empty($firstRow);
+        if ($hasFirst && $page === 1) {
+            $result[] = $firstRow;
+        }
+
+        if ($hasFirst) {
+            $offset = $page === 1 ? 0 : (($page - 1) * $perPage - 1);
+            if ($offset < 0) {
+                $offset = 0;
+            }
+            $limit = $page === 1 ? ($perPage - 1) : $perPage;
+        } else {
+            $offset = ($page - 1) * $perPage;
+            $limit = $perPage;
+        }
+
         $list = $listQuery
             ->order('cc.id', 'desc')
+            ->limit($offset, $limit)
             ->select()
             ->toArray();
 
-        $result = [];
-        if (is_array($firstRow) && !empty($firstRow)) {
-            $result[] = $firstRow;
-        }
         foreach ($list as $row) {
             $result[] = $row;
         }
 
-        return $this->success($result, '获取用户分享的创意图片成功');
+        return $this->success([
+            'list' => $result,
+            'total_page' => $totalPage,
+            'current_page' => $page,
+        ], '获取用户分享的创意图片成功');
     }
 }
 

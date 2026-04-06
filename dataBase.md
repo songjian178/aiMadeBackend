@@ -90,6 +90,67 @@
 - KEY (category_id)
 - KEY (sort)
 
+### 3.2 实体分类属性名表 (aimade_entity_attribute)
+
+| 字段名 | 数据类型 | 长度 | 约束 | 描述 |
+|-------|---------|------|------|------|
+| id | int | 11 | PRIMARY KEY, AUTO_INCREMENT | 属性ID |
+| category_id | int | 11 | NOT NULL | 实体分类ID（外键：aimade_entity_category.id） |
+| attr_name | varchar | 100 | NOT NULL | 属性名（如：型号、颜色） |
+| sort | int | 11 | DEFAULT 0 | 排序值（越小越靠前） |
+| status | tinyint | 1 | DEFAULT 1 | 状态（1：有效，0：无效） |
+| created_at | datetime | - | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
+| updated_at | datetime | - | DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间 |
+| deleted_at | datetime | - | NULL | 软删除时间 |
+
+**索引**：
+- PRIMARY KEY (id)
+- KEY (category_id)
+- KEY (sort)
+- UNIQUE KEY (category_id, attr_name) | 同一实体分类下属性名唯一
+
+### 3.3 实体分类属性值表 (aimade_entity_attribute_value)
+
+| 字段名 | 数据类型 | 长度 | 约束 | 描述 |
+|-------|---------|------|------|------|
+| id | int | 11 | PRIMARY KEY, AUTO_INCREMENT | 属性值ID |
+| attribute_id | int | 11 | NOT NULL | 属性ID（外键：aimade_entity_attribute.id） |
+| attr_value | varchar | 100 | NOT NULL | 属性值（如：L、M、XL、黑色、白色） |
+| is_default | tinyint | 1 | DEFAULT 0 | 是否默认选中（1：是，0：否） |
+| sort | int | 11 | DEFAULT 0 | 排序值（越小越靠前） |
+| remark | varchar | 255 | NOT NULL | 备注 |
+| status | tinyint | 1 | DEFAULT 1 | 状态（1：有效，0：无效） |
+| created_at | datetime | - | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
+| updated_at | datetime | - | DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间 |
+| deleted_at | datetime | - | NULL | 软删除时间 |
+
+**索引**：
+- PRIMARY KEY (id)
+- KEY (attribute_id)
+- KEY (is_default)
+- KEY (sort)
+- UNIQUE KEY (attribute_id, attr_value) | 同一属性下属性值唯一
+
+### 3.4 订单属性映射表 (aimade_order_attribute_value)
+
+| 字段名 | 数据类型 | 长度 | 约束 | 描述 |
+|-------|---------|------|------|------|
+| id | int | 11 | PRIMARY KEY, AUTO_INCREMENT | 记录ID |
+| order_id | int | 11 | NOT NULL | 订单ID（外键：aimade_entity_order.id） |
+| attribute_id | int | 11 | NOT NULL | 属性ID（外键：aimade_entity_attribute.id） |
+| attribute_value_id | int | 11 | NOT NULL | 属性值ID（外键：aimade_entity_attribute_value.id） |
+| status | tinyint | 1 | DEFAULT 1 | 状态（1：有效，0：无效） |
+| created_at | datetime | - | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
+| updated_at | datetime | - | DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间 |
+| deleted_at | datetime | - | NULL | 软删除时间 |
+
+**索引**：
+- PRIMARY KEY (id)
+- KEY (order_id)
+- KEY (attribute_id)
+- KEY (attribute_value_id)
+- UNIQUE KEY (order_id, attribute_id) | 同一订单同一属性仅保留一个选中值
+
 ### 4. 生成订单表 (aimade_entity_order)
 
 | 字段名 | 数据类型 | 长度 | 约束 | 描述 |
@@ -377,6 +438,7 @@
 - `aimade_entity_order` ↔ `aimade_order_status`：一对多（一个订单可以有多个状态记录）
 - `aimade_entity_order` ↔ `aimade_entity_shipping`：一对一（一个订单对应一个发货记录）
 - `aimade_entity_order` ↔ `aimade_payment`：一对一（一个订单对应一个支付记录）
+- `aimade_entity_order` ↔ `aimade_order_attribute_value`：一对多（一个订单可保存多个属性选择结果）
 
 ### 3. 图片相关
 - `aimade_order_corpus` ↔ `aimade_generated_image`：一对多（一个语料可以生成多个图片）
@@ -387,6 +449,10 @@
 - `aimade_entity_category` ↔ `aimade_entity_order`：一对多（一个分类可以有多个订单）
 - `aimade_entity_category` ↔ `aimade_user_purchased_entity`：一对多（一个分类可以被多个用户购买）
 - `aimade_entity_category` ↔ `aimade_entity_category_banner`：一对多（一个分类可配置多张介绍 Banner 图）
+- `aimade_entity_category` ↔ `aimade_entity_attribute`：一对多（一个分类可配置多个属性名）
+- `aimade_entity_attribute` ↔ `aimade_entity_attribute_value`：一对多（一个属性名可配置多个属性值，支持默认选中）
+- `aimade_entity_attribute` ↔ `aimade_order_attribute_value`：一对多（一个属性名可被多个订单选择）
+- `aimade_entity_attribute_value` ↔ `aimade_order_attribute_value`：一对多（一个属性值可被多个订单选择）
 
 ### 5. 地址相关
 - `aimade_user_address` ↔ `aimade_entity_order`：一对多（一个地址可以用于多个订单）
@@ -831,6 +897,67 @@ CREATE TABLE `aimade_entity_render_config` (
   UNIQUE KEY `category_id_unique` (`category_id`),
   KEY `status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='实体渲染配置表';
+```
+
+### 16. 实体分类属性名表 (aimade_entity_attribute)
+
+```sql
+CREATE TABLE `aimade_entity_attribute` (
+  `id` int(11) NOT NULL AUTO_INCREMENT COMMENT '属性ID',
+  `category_id` int(11) NOT NULL COMMENT '实体分类ID',
+  `attr_name` varchar(100) NOT NULL COMMENT '属性名（如：型号、颜色）',
+  `sort` int(11) DEFAULT '0' COMMENT '排序值（越小越靠前）',
+  `status` tinyint(1) DEFAULT '1' COMMENT '状态（1：有效，0：无效）',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted_at` datetime DEFAULT NULL COMMENT '软删除时间',
+  PRIMARY KEY (`id`),
+  KEY `category_id` (`category_id`),
+  KEY `sort` (`sort`),
+  UNIQUE KEY `category_attr_name_unique` (`category_id`, `attr_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='实体分类属性名表';
+```
+
+### 17. 实体分类属性值表 (aimade_entity_attribute_value)
+
+```sql
+CREATE TABLE `aimade_entity_attribute_value` (
+  `id` int(11) NOT NULL AUTO_INCREMENT COMMENT '属性值ID',
+  `attribute_id` int(11) NOT NULL COMMENT '属性ID（aimade_entity_attribute.id）',
+  `attr_value` varchar(100) NOT NULL COMMENT '属性值（如：L、M、XL、黑色、白色）',
+  `is_default` tinyint(1) DEFAULT '0' COMMENT '是否默认选中（1：是，0：否）',
+  `sort` int(11) DEFAULT '0' COMMENT '排序值（越小越靠前）',
+  `remark` varchar(255) DEFAULT '' COMMENT '备注',
+  `status` tinyint(1) DEFAULT '1' COMMENT '状态（1：有效，0：无效）',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted_at` datetime DEFAULT NULL COMMENT '软删除时间',
+  PRIMARY KEY (`id`),
+  KEY `attribute_id` (`attribute_id`),
+  KEY `is_default` (`is_default`),
+  KEY `sort` (`sort`),
+  UNIQUE KEY `attribute_value_unique` (`attribute_id`, `attr_value`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='实体分类属性值表';
+```
+
+### 18. 订单属性映射表 (aimade_order_attribute_value)
+
+```sql
+CREATE TABLE `aimade_order_attribute_value` (
+  `id` int(11) NOT NULL AUTO_INCREMENT COMMENT '记录ID',
+  `order_id` int(11) NOT NULL COMMENT '订单ID（aimade_entity_order.id）',
+  `attribute_id` int(11) NOT NULL COMMENT '属性ID（aimade_entity_attribute.id）',
+  `attribute_value_id` int(11) NOT NULL COMMENT '属性值ID（aimade_entity_attribute_value.id）',
+  `status` tinyint(1) DEFAULT '1' COMMENT '状态（1：有效，0：无效）',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted_at` datetime DEFAULT NULL COMMENT '软删除时间',
+  PRIMARY KEY (`id`),
+  KEY `order_id` (`order_id`),
+  KEY `attribute_id` (`attribute_id`),
+  KEY `attribute_value_id` (`attribute_value_id`),
+  UNIQUE KEY `order_attribute_unique` (`order_id`, `attribute_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单属性映射表';
 ```
 
 ### 创建数据库

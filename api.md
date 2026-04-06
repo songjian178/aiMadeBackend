@@ -343,6 +343,50 @@
       "urls": [
         "https://example.com/category/basic/banner1.png",
         "https://example.com/category/basic/banner2.png"
+      ],
+      "attributes": [
+        {
+          "attribute_id": 1,
+          "attribute_name": "型号",
+          "values": [
+            {
+              "id": 1,
+              "value": "M",
+              "is_default": 1,
+              "remark": "常规尺码"
+            },
+            {
+              "id": 2,
+              "value": "L",
+              "is_default": 0,
+              "remark": "偏大一码"
+            },
+            {
+              "id": 3,
+              "value": "XL",
+              "is_default": 0,
+              "remark": ""
+            }
+          ]
+        },
+        {
+          "attribute_id": 2,
+          "attribute_name": "颜色",
+          "values": [
+            {
+              "id": 4,
+              "value": "白色",
+              "is_default": 1,
+              "remark": "默认推荐"
+            },
+            {
+              "id": 5,
+              "value": "黑色",
+              "is_default": 0,
+              "remark": ""
+            }
+          ]
+        }
       ]
     }
   ]
@@ -427,6 +471,50 @@
     "urls": [
       "https://example.com/category/basic/banner1.png",
       "https://example.com/category/basic/banner2.png"
+    ],
+    "attributes": [
+      {
+        "attribute_id": 1,
+        "attribute_name": "型号",
+        "values": [
+          {
+            "id": 1,
+            "value": "M",
+            "is_default": 1,
+            "remark": "常规尺码"
+          },
+          {
+            "id": 2,
+            "value": "L",
+            "is_default": 0,
+            "remark": "偏大一码"
+          },
+          {
+            "id": 3,
+            "value": "XL",
+            "is_default": 0,
+            "remark": ""
+          }
+        ]
+      },
+      {
+        "attribute_id": 2,
+        "attribute_name": "颜色",
+        "values": [
+          {
+            "id": 4,
+            "value": "白色",
+            "is_default": 1,
+            "remark": "默认推荐"
+          },
+          {
+            "id": 5,
+            "value": "黑色",
+            "is_default": 0,
+            "remark": ""
+          }
+        ]
+      }
     ]
   }
 }
@@ -957,6 +1045,7 @@
 | image_id | int | 是 | `aimade_generated_image.id` |
 | address_id | int | 是 | `aimade_user_address.id`（当前用户地址） |
 | remark | string | 否 | 下单备注，写入 `aimade_order_status.remark`（不传则使用默认文案） |
+| attribute_values | array | 否 | 用户选择的属性与属性值数组，元素格式：`{attribute_id, attribute_value_id}` |
 
 **说明**：
 - 通过 `aimade_generated_image` 找到 `corpus_id`，再通过 `aimade_order_corpus` 找到 `order_id`；
@@ -964,7 +1053,23 @@
 - 将 `aimade_generated_image.is_use` 更新为 `1`；
 - 将 `aimade_entity_order.order_status` 更新为 `2`（下单），并更新 `address_id`；
 - 向 `aimade_order_status` 新增一条状态记录（`status=2`），`remark` 优先取请求参数；
+- 若请求中传入 `attribute_values`，会校验属性归属与值匹配后，同步写入 `aimade_order_attribute_value`（`order_id + attribute_id -> attribute_value_id`）；
 - 下单成功后，将当前订单对应 `aimade_user_purchased_entity` 记录 `status` 置为 `0`，并将 `remaining_renders` 置为 `0`（后续不可再生成）。
+
+`attribute_values` 参数示例：
+
+```json
+[
+  {
+    "attribute_id": 1,
+    "attribute_value_id": 2
+  },
+  {
+    "attribute_id": 2,
+    "attribute_value_id": 5
+  }
+]
+```
 
 **返回示例**：
 
@@ -1010,6 +1115,24 @@
 {
   "code": 400,
   "message": "渲染预览图尚未生成完成，无法下单",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "属性参数格式错误",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "存在无效的属性值",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "属性与属性值不匹配",
   "data": null
 }
 
@@ -1328,10 +1451,16 @@
 | 参数名 | 类型 | 必填 | 描述 |
 |-------|------|------|------|
 | imageId | string | 否 | base64 加密后的 `aimade_generated_image.id` 主键；传入后对应图片会被放在返回数组的第一个 |
+| page | int | 否 | 页码，从 1 开始，默认 1；每页固定 10 条 |
 
 **说明**：根据 `aimade_creative_community`（`status=1`）筛选已分享的创意图片，并联表 `aimade_generated_image` 与 `aimade_order_corpus` 获取展示数据。
 
 当传入 `imageId` 时，会先解密并查出对应的 `aimade_generated_image` 记录，将其放在返回列表第一个；剩余图片仍按原排序查询，并自动避免重复。
+
+分页规则：
+- 每页固定返回 10 条；
+- 响应中返回 `total_page`（总页数）与 `current_page`（当前页）；
+- 若传了 `imageId` 且命中，置顶数据仅在第 1 页占用 1 个名额。
 
 接口字段说明：
 - `aimade_generated_image`：只返回 `image_url/render_url`
@@ -1344,23 +1473,27 @@
 {
   "code": 200,
   "message": "获取用户分享的创意图片成功",
-  "data": [
-    {
-      "image_url": "https://example.com/image.png",
-      "render_url": "https://example.com/render.png",
-      "creative_id": 1,
-      "title": "示例标题",
-      "description": "示例描述",
-      "likes_count": 0,
-      "views_count": 0,
-      "is_public": 1,
-      "corpus_id": 12,
-      "prompt": "示例提示词"
-    }
-  ]
+  "data": {
+    "list": [
+      {
+        "image_url": "https://example.com/image.png",
+        "render_url": "https://example.com/render.png",
+        "creative_id": 1,
+        "title": "示例标题",
+        "description": "示例描述",
+        "likes_count": 0,
+        "views_count": 0,
+        "is_public": 1,
+        "corpus_id": 12,
+        "prompt": "示例提示词"
+      }
+    ],
+    "total_page": 5,
+    "current_page": 1
+  }
 }
 
-// 失败（无数据时一般仍返回 200，data 为 []）
+// 失败（无数据时一般仍返回 200，list 为 []）
 
 
 ```

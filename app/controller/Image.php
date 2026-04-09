@@ -40,9 +40,14 @@ class Image extends BaseController
         }
 
         $aspectRatio = (string)$this->request->post('aspect_ratio', '3:4');
-        // 生成参数固定：与需求保持一致
+        $model = trim((string)$this->request->post('model', 'nano-banana-2'));
+        $allowedModels = ['nano-banana-2', 'nano-banana-fast'];
+        if (!in_array($model, $allowedModels, true)) {
+            return $this->error('model 参数无效，仅支持 nano-banana-2 或 nano-banana-fast');
+        }
+
+        // 生成参数固定：image_size 与 shot_progress 固定
         $imageSize = '2K';
-        $model = 'nano-banana-fast';
         $shotProgress = false;
 
         $availableOrder = Db::name('entity_order')

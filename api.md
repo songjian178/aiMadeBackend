@@ -1231,13 +1231,14 @@
 | category_id | int | 是 | 选中的实体分类ID |
 | prompt | string | 是 | 生成提示词 |
 | aspect_ratio | string | 否 | 宽高比，默认 `3:4` |
+| model | string | 否 | 生成模型，默认 `nano-banana-2`；可选：`nano-banana-2` / `nano-banana-fast` |
 | share_to_community | int | 否 | 是否分享到社区（1：是，0：否，默认0） |
 
 **说明**：接口会先进行资格校验，然后调用 Nano-Banana 生成服务，并新增写入 `aimade_order_corpus` 与 `aimade_generated_image`。`aimade_generated_image.query_id` 存储第三方返回的 `result['data']['id']`，用于后续结果查询。
 
 当 `share_to_community=1` 时，会先在 `aimade_creative_community` 创建一条收录记录（`status=0`，待图片生成完成），其中 `image_id` 关联本次 `generated_image` 记录，标题取 `prompt` 前100字符，描述为 `prompt`。
 
-生成参数固定为：`image_size='2K'`、`model='nano-banana'`、`shot_progress=false`（不需要前端传递）。
+生成参数固定为：`image_size='2K'`、`shot_progress=false`（不需要前端传递）；`model` 可由前端可选传入，默认 `nano-banana-2`。
 
 校验规则：
 1. 当前用户在传入的 `category_id` 下存在 `payment_status = 1` 的订单；
@@ -1279,6 +1280,12 @@
 {
   "code": 400,
   "message": "内容包含违规信息，请修改提示词后重试",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "model 参数无效，仅支持 nano-banana-2 或 nano-banana-fast",
   "data": null
 }
 

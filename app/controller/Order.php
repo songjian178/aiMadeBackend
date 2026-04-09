@@ -425,7 +425,7 @@ class Order extends BaseController
                 'order_id' => (int)$target['order_id'],
                 'user_id' => $userId,
                 'status' => 2,
-                'remark' => '用户提交下单，绑定地址ID：' . $addressId."，备注：".$remark,
+                'remark' => '用户提交下单' . ($remark? "，备注：" . $remark:""),
             ]);
 
             // 4) 下单后将当前订单对应权益次数清零，后续不可继续使用
@@ -435,8 +435,7 @@ class Order extends BaseController
                 ->where('status', 1)
                 ->whereNull('deleted_at')
                 ->update([
-                    // 标记权益不可再使用（生成次数清零 + 状态置为不可用）
-                    'status' => 0,
+                    // 标记权益不可再使用（生成次数清零）
                     'remaining_renders' => 0
                 ]);
 

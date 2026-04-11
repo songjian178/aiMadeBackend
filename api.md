@@ -1216,7 +1216,57 @@
 }
 ```
 
-### 5. 生成图片接口
+### 5. 图片上传至 OSS
+
+**请求地址**：`/upload/image`  
+**请求方式**：POST  
+**是否需要 token**：是  
+
+**请求头**：
+
+- `Authorization: Bearer {token}`
+- `Content-Type: multipart/form-data`
+
+**请求参数**：
+
+| 参数名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| file | file | 是 | 图片文件；字段名必须为 `file` |
+
+**限制**：后缀仅支持 jpg、jpeg、png、gif、webp、bmp；单文件大小受环境变量 `OSS_UPLOAD_MAX_BYTES` 约束（默认 10MB）。服务端将文件保存为 OSS 对象路径：`{日期yyyyMMdd}/{随机32位hex}.{后缀}`。
+
+**返回示例**：
+
+```json
+{
+  "code": 200,
+  "message": "上传成功",
+  "data": {
+    "url": "https://your-bucket.oss-cn-hangzhou.aliyuncs.com/20260411/a1b2c3d4e5f6789012345678901234ab.jpg",
+    "key": "20260411/a1b2c3d4e5f6789012345678901234ab.jpg"
+  }
+}
+```
+
+```json
+{
+  "code": 400,
+  "message": "仅支持图片格式：jpg、jpeg、png、gif、webp、bmp",
+  "data": null
+}
+```
+
+```json
+{
+  "code": 400,
+  "message": "请上传文件",
+  "data": null
+}
+```
+
+**说明**：`url` 在配置了 `OSS_PUBLIC_BASE_URL` 时为该基址与 `key` 拼接；否则为默认的 Bucket 外网域名形式。OSS 与密钥配置见项目 `README.md`「阿里云 OSS 图片上传配置」。
+
+### 6. 生成图片接口
 
 **请求地址**：`/image/generate-image`
 **请求方式**：POST
@@ -1302,7 +1352,7 @@
 }
 ```
 
-### 6. 查询图片生成状态
+### 7. 查询图片生成状态
 
 **请求地址**：`/image/get-image-result`
 **请求方式**：POST
@@ -1363,7 +1413,7 @@
 }
 ```
 
-### 6.5. 生成最终实体渲染图
+### 7.5. 生成最终实体渲染图
 
 **请求地址**：`/image/generate-render-image`
 **请求方式**：POST
@@ -1405,7 +1455,7 @@
 }
 ```
 
-### 7. 获取当前分类下用户的已生成图片
+### 8. 获取当前分类下用户的已生成图片
 
 **请求地址**：`/image/generated-images`
 **请求方式**：POST
@@ -1447,7 +1497,7 @@
 }
 ```
 
-### 8. 获取用户分享的创意社区图片
+### 9. 获取用户分享的创意社区图片
 
 **请求地址**：`/image/shared-creatives`
 **请求方式**：POST

@@ -447,3 +447,37 @@ POST
 1. 构造签名串（按照上述格式）
 2. 使用商户API私钥对签名串进行SHA256withRSA签名
 3. 对签名结果进行Base64编码
+
+## 阿里云 OSS 图片上传配置
+
+项目使用 Composer 包 `alibabacloud/oss-v2`（[OSS PHP SDK v2 说明](https://github.com/aliyun/alibabacloud-oss-php-sdk-v2/blob/master/README-CN.md)）将用户上传的图片传到对象存储。接口为 `POST /upload/image`（需登录），业务封装在 `app/service/OssUploadService.php`。
+
+在 `.env` 中配置以下变量（**请勿将密钥提交到版本库**）：
+
+```env
+# 必填：RAM 用户 AccessKey（建议仅授予 OSS 最小权限）
+OSS_ACCESS_KEY_ID=你的AccessKeyId
+OSS_ACCESS_KEY_SECRET=你的AccessKeySecret
+
+# 必填：Bucket 所在地域 ID，如 cn-hangzhou、cn-beijing
+OSS_REGION=cn-hangzhou
+
+# 必填：Bucket 名称
+OSS_BUCKET=your-bucket-name
+
+# 可选：自定义 Endpoint（内网、传输加速、CNAME 等场景，如 oss-cn-hangzhou.aliyuncs.com 或自定义域名主机名，按控制台说明填写）
+# OSS_ENDPOINT=
+
+# 可选：返回给前端的文件访问基址（CDN 或自定义域名时填写，须以 https:// 开头、无末尾斜杠）
+# 不填时默认拼接为：https://{bucket}.oss-{region}.aliyuncs.com/
+# OSS_PUBLIC_BASE_URL=https://img.example.com
+
+# 可选：单文件最大字节数，默认 10485760（10MB）
+# OSS_UPLOAD_MAX_BYTES=10485760
+```
+
+**说明**：
+
+- 对象在 Bucket 中的路径为 `{YYYYMMDD}/{32位随机十六进制}.{后缀}`，后缀仅允许 jpg、jpeg、png、gif、webp、bmp。
+- Bucket 若为非公共读，前端拿到的 URL 需在控制台配置跨域或通过应用侧签名访问；公共读 Bucket 可直接用返回的 `url` 访问。
+- 更完整的 SDK 用法见阿里云文档：[使用 OSS PHP SDK V2 简单上传](https://help.aliyun.com/zh/oss/developer-reference/simple-upload-using-oss-sdk-for-php-v2)。

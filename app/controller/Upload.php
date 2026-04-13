@@ -7,6 +7,7 @@ use app\BaseController;
 
 use app\service\OssUploadService;
 use think\file\UploadedFile;
+use think\facade\Db;
 
 class Upload extends BaseController
 {
@@ -16,6 +17,16 @@ class Upload extends BaseController
     public function image()
     {
         $userId = $this->getCurrentUserId();
+        $hasAvailableOrder = Db::name('entity_order')
+            ->where('user_id', $userId)
+            ->where('payment_status', 1)
+            ->where('order_status', 'in', [0, 1])
+            ->where('status', 1)
+            ->whereNull('deleted_at')
+            ->find();
+        if (!$hasAvailableOrder) {
+            return $this->error('当前无可用权益，暂不支持上传');
+        }
 
         /** @var UploadedFile|null $file */
         $file = $this->request->file('file');

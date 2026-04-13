@@ -29,9 +29,13 @@ class Image extends BaseController
         $userId = $this->getCurrentUserId();
         $categoryId = (int)$this->request->post('category_id');
         $prompt = trim((string)$this->request->post('prompt', ''));
+        $referenceImage = trim((string)$this->request->post('reference_image', ''));
         $shareToCommunity = (int)$this->request->post('share_to_community', 0) === 1;
         if ($categoryId <= 0 || $prompt === '') {
             return $this->error('参数不完整');
+        }
+        if ($referenceImage !== '' && filter_var($referenceImage, FILTER_VALIDATE_URL) === false) {
+            return $this->error('reference_image 必须是合法的图片 URL');
         }
 
         $promptBlocked = PromptContentChecker::validatePrompt($prompt);
@@ -49,6 +53,7 @@ class Image extends BaseController
         // 生成参数固定：image_size 与 shot_progress 固定
         $imageSize = '2K';
         $shotProgress = false;
+        $generateUrls = $referenceImage !== '' ? [$referenceImage] : [];
 
         $availableOrder = Db::name('entity_order')
             ->alias('o')
@@ -78,7 +83,8 @@ class Image extends BaseController
                 $aspectRatio,
                 $imageSize,
                 $model,
-                $shotProgress
+                $shotProgress,
+                $generateUrls
             );
         } catch (\Throwable $e) {
             $this->writeLog('generate_image', '调用生成图片服务失败：' . $e->getMessage(), $userId, 3);
@@ -126,6 +132,7 @@ class Image extends BaseController
             $corpusId = Db::name('order_corpus')->insertGetId([
                 'order_id' => (int)$availableOrder['order_id'],
                 'prompt' => $prompt,
+                'reference_image' => $referenceImage !== '' ? $referenceImage : null,
                 'parameters' => json_encode([
                     'aspect_ratio' => $aspectRatio,
                     'image_size' => $imageSize,

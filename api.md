@@ -1233,7 +1233,7 @@
 |--------|------|------|------|
 | file | file | 是 | 图片文件；字段名必须为 `file` |
 
-**限制**：后缀仅支持 jpg、jpeg、png、gif、webp、bmp；单文件大小受环境变量 `OSS_UPLOAD_MAX_BYTES` 约束（默认 10MB）。服务端将文件保存为 OSS 对象路径：`{日期yyyyMMdd}/{随机32位hex}.{后缀}`。
+**限制**：后缀仅支持 jpg、jpeg、png、gif、webp、bmp；单文件大小受环境变量 `OSS_UPLOAD_MAX_BYTES` 约束（默认 10MB）。服务端将文件保存为 OSS 对象路径：`{日期yyyyMMdd}/{随机32位hex}.{后缀}`。上传前会校验当前用户是否存在可用权益订单（`payment_status=1` 且 `order_status` 为 `0` 或 `1`），无可用权益不可上传。
 
 **返回示例**：
 
@@ -1252,6 +1252,14 @@
 {
   "code": 400,
   "message": "仅支持图片格式：jpg、jpeg、png、gif、webp、bmp",
+  "data": null
+}
+```
+
+```json
+{
+  "code": 400,
+  "message": "当前无可用权益，暂不支持上传",
   "data": null
 }
 ```
@@ -1280,6 +1288,7 @@
 |-------|------|------|------|
 | category_id | int | 是 | 选中的实体分类ID |
 | prompt | string | 是 | 生成提示词 |
+| reference_image | string | 否 | 参考图片 URL（http/https）；传入后会携带该图给第三方生成，并写入 `aimade_order_corpus.reference_image` |
 | aspect_ratio | string | 否 | 宽高比，默认 `3:4` |
 | model | string | 否 | 生成模型，默认 `nano-banana-2`；可选：`nano-banana-2` / `nano-banana-fast` |
 | share_to_community | int | 否 | 是否分享到社区（1：是，0：否，默认0） |
@@ -1295,6 +1304,7 @@
 2. 订单状态为 `待使用(0)` 或 `生成中(1)`；
 3. 对应权益记录 `remaining_renders > 0` 且未过期（`expire_time > 当前时间`）；
 4. **`prompt` 内容合规**：不允许包含涉黄、涉赌、涉毒、政治敏感等违规内容（服务端基于可配置关键词表做匹配，具体词表见 `config/prompt_sensitive.php`，可按业务扩充）。命中时直接返回失败提示，不调用第三方生成接口。
+5. `reference_image` 传值时，必须是合法 URL（http/https）。
 
 **返回示例**：
 
@@ -1336,6 +1346,12 @@
 {
   "code": 400,
   "message": "model 参数无效，仅支持 nano-banana-2 或 nano-banana-fast",
+  "data": null
+}
+
+{
+  "code": 400,
+  "message": "reference_image 必须是合法的图片 URL",
   "data": null
 }
 
